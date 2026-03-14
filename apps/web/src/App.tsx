@@ -1,4 +1,6 @@
 import {
+  type ClipboardEvent,
+  type DragEvent,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -8,6 +10,13 @@ import {
 } from "react";
 import { listThemes, renderMarkdownToWechat, type Theme } from "@md2wechat/core";
 import { examples } from "./examples";
+import {
+  createDefaultImageUploadSettings,
+  loadImageUploadSettings,
+  saveImageUploadSettings,
+  uploadImageFile,
+  type ImageUploadSettings
+} from "./imageUpload";
 import {
   createEmptyDraft,
   draftToTheme,
@@ -28,6 +37,10 @@ type EditorSettings = {
 type AppTheme = ReturnType<typeof listThemes>[number];
 type FontOption = { label: string; value: string };
 type FontSizeOption = { label: string; value: number };
+type UploadStatus = {
+  kind: "idle" | "uploading" | "success" | "error";
+  message: string;
+};
 
 const pickerPreviewMarkdown = `## 二级标题
 ### 三级标题
@@ -192,6 +205,13 @@ function SectionTitle({
       {children ? <div className="section-title-side">{children}</div> : null}
     </div>
   );
+}
+
+function extractImageFiles(items: Iterable<DataTransferItem>) {
+  return [...items]
+    .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
 }
 
 function SettingsIcon() {
@@ -476,6 +496,16 @@ export default function App() {
   const [copiedTs, setCopiedTs] = useState(false);
   const [themeModalOpen, setThemeModalOpen] = useState(() => getThemeModalFromSearch());
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [imageUploadSettings, setImageUploadSettings] = useState<ImageUploadSettings>(() =>
+    typeof window === "undefined"
+      ? createDefaultImageUploadSettings()
+      : loadImageUploadSettings()
+  );
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>({
+    kind: "idle",
+    message: ""
+  });
+  const [editorDragActive, setEditorDragActive] = useState(false);
   const [settings, setSettings] = useState<EditorSettings>({
     syncScroll: true,
     previewFontFamily: "theme",
@@ -485,6 +515,7 @@ export default function App() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const syncingRef = useRef<"editor" | "preview" | null>(null);
+  const uploadStatusTimerRef = useRef<number | null>(null);
   const deferredMarkdown = useDeferredValue(markdown);
   const localThemes = useMemo(() => themeDrafts.map((item) => draftToTheme(item)), [themeDrafts]);
   const availableThemes = useMemo(
@@ -533,10 +564,23 @@ export default function App() {
   }, [themeDrafts]);
 
   useEffect(() => {
+    saveImageUploadSettings(imageUploadSettings);
+  }, [imageUploadSettings]);
+
+  useEffect(() => {
     if (!availableThemes.some((theme) => theme.name === themeName)) {
       setThemeName(builtinThemes[0]?.name ?? "default");
     }
   }, [availableThemes, builtinThemes, themeName]);
+
+  useEffect(
+    () => () => {
+      if (uploadStatusTimerRef.current) {
+        window.clearTimeout(uploadStatusTimerRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -587,6 +631,131 @@ export default function App() {
       preview.removeEventListener("scroll", onPreviewScroll);
     };
   }, [settings.syncScroll, deferredMarkdown, previewTheme]);
+
+  function flashUploadStatus(nextStatus: UploadStatus, timeoutMs = 2600) {
+    if (uploadStatusTimerRef.current) {
+      window.clearTimeout(uploadStatusTimerRef.current);
+      uploadStatusTimerRef.current = null;
+    }
+
+    setUploadStatus(nextStatus);
+
+    if (nextStatus.kind === "uploading" || nextStatus.kind === "idle") {
+      return;
+    }
+
+    uploadStatusTimerRef.current = window.setTimeout(() => {
+      setUploadStatus({ kind: "idle", message: "" });
+      uploadStatusTimerRef.current = null;
+    }, timeoutMs);
+  }
+
+  function insertMarkdownAtCursor(insertText: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setMarkdown((current) => `${current}${current.endsWith("\n") ? "" : "\n"}${insertText}`);
+      return;
+    }
+
+    const start = textarea.selectionStart ?? markdown.length;
+    const end = textarea.selectionEnd ?? markdown.length;
+    setMarkdown((current) => `${current.slice(0, start)}${insertText}${current.slice(end)}`);
+
+    window.requestAnimationFrame(() => {
+      const nextCursor = start + insertText.length;
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
+  async function uploadImages(files: File[], source: "paste" | "drop") {
+    if (files.length === 0) {
+      return;
+    }
+
+    flashUploadStatus({
+      kind: "uploading",
+      message: `正在上传 ${files.length} 张图片...`
+    });
+
+    try {
+      const uploaded = [];
+
+      for (const file of files) {
+        uploaded.push(await uploadImageFile(file, imageUploadSettings));
+      }
+
+      const markdownBlock = uploaded
+        .map((item) => `![${item.alt}](${item.url})`)
+        .join("\n\n");
+      const currentValue = textareaRef.current?.value ?? markdown;
+      const prefix = currentValue.trim().length === 0 ? "" : "\n\n";
+      const suffix = "\n";
+      insertMarkdownAtCursor(`${prefix}${markdownBlock}${suffix}`);
+      flashUploadStatus({
+        kind: "success",
+        message: `已上传 ${uploaded.length} 张图片并插入 Markdown`
+      });
+    } catch (error) {
+      flashUploadStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "图片上传失败"
+      }, 4200);
+    } finally {
+      setEditorDragActive(false);
+    }
+  }
+
+  function handleEditorPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = extractImageFiles(event.clipboardData.items);
+    if (files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    void uploadImages(files, "paste");
+  }
+
+  function handleEditorDragOver(event: DragEvent<HTMLTextAreaElement>) {
+    const hasImageFile = [...event.dataTransfer.items].some(
+      (item) => item.kind === "file" && item.type.startsWith("image/")
+    );
+    if (!hasImageFile) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setEditorDragActive(true);
+  }
+
+  function handleEditorDragEnter(event: DragEvent<HTMLTextAreaElement>) {
+    const hasImageFile = [...event.dataTransfer.items].some(
+      (item) => item.kind === "file" && item.type.startsWith("image/")
+    );
+    if (hasImageFile) {
+      setEditorDragActive(true);
+    }
+  }
+
+  function handleEditorDrop(event: DragEvent<HTMLTextAreaElement>) {
+    const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith("image/"));
+    if (files.length === 0) {
+      setEditorDragActive(false);
+      return;
+    }
+
+    event.preventDefault();
+    void uploadImages(files, "drop");
+  }
+
+  function handleEditorDragLeave(event: DragEvent<HTMLTextAreaElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+
+    setEditorDragActive(false);
+  }
 
   function navigate(nextRoute: Route) {
     window.location.hash = sanitizeRoute(nextRoute);
@@ -731,8 +900,22 @@ export default function App() {
           {route === "editor" ? (
             <section className="page-shell editor-page">
               <div className="editor-content-layout compact-top">
-                <aside className="studio-card editor-composer">
-                  <SectionTitle title="编辑区" />
+                <aside
+                  className={
+                    editorDragActive
+                      ? "studio-card editor-composer is-drag-active"
+                      : "studio-card editor-composer"
+                  }
+                >
+                  <SectionTitle title="编辑区">
+                    {uploadStatus.kind !== "idle" ? (
+                      <span className={`status-chip is-${uploadStatus.kind}`}>
+                        {uploadStatus.message}
+                      </span>
+                    ) : (
+                      <span className="editor-hint">粘贴或拖拽图片自动上传</span>
+                    )}
+                  </SectionTitle>
 
                   <textarea
                     ref={textareaRef}
@@ -741,6 +924,11 @@ export default function App() {
                     className="markdown-input"
                     value={markdown}
                     onChange={(event) => setMarkdown(event.target.value)}
+                    onPaste={handleEditorPaste}
+                    onDragOver={handleEditorDragOver}
+                    onDragEnter={handleEditorDragEnter}
+                    onDragLeave={handleEditorDragLeave}
+                    onDrop={handleEditorDrop}
                     spellCheck={false}
                     style={{
                       fontFamily:
@@ -889,6 +1077,103 @@ export default function App() {
                     {option.label}px
                   </button>
                 ))}
+              </div>
+            </section>
+
+            <section className="drawer-section">
+              <SectionTitle title="图片上传" />
+              <div className="drawer-form-grid">
+                <label className="drawer-field field-span-2">
+                  <span>GitHub Token</span>
+                  <input
+                    className="drawer-text-input"
+                    type="password"
+                    value={imageUploadSettings.githubToken}
+                    onChange={(event) =>
+                      setImageUploadSettings((current) => ({
+                        ...current,
+                        githubToken: event.target.value
+                      }))
+                    }
+                    placeholder="ghp_xxx 或 fine-grained token"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="drawer-field">
+                  <span>Owner</span>
+                  <input
+                    className="drawer-text-input"
+                    value={imageUploadSettings.githubOwner}
+                    onChange={(event) =>
+                      setImageUploadSettings((current) => ({
+                        ...current,
+                        githubOwner: event.target.value
+                      }))
+                    }
+                    placeholder="yourname"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="drawer-field">
+                  <span>Repo</span>
+                  <input
+                    className="drawer-text-input"
+                    value={imageUploadSettings.githubRepo}
+                    onChange={(event) =>
+                      setImageUploadSettings((current) => ({
+                        ...current,
+                        githubRepo: event.target.value
+                      }))
+                    }
+                    placeholder="md2wechat-assets"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="drawer-field">
+                  <span>Branch</span>
+                  <input
+                    className="drawer-text-input"
+                    value={imageUploadSettings.githubBranch}
+                    onChange={(event) =>
+                      setImageUploadSettings((current) => ({
+                        ...current,
+                        githubBranch: event.target.value
+                      }))
+                    }
+                    placeholder="main"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="drawer-field">
+                  <span>目录</span>
+                  <input
+                    className="drawer-text-input"
+                    value={imageUploadSettings.pathPrefix}
+                    onChange={(event) =>
+                      setImageUploadSettings((current) => ({
+                        ...current,
+                        pathPrefix: event.target.value
+                      }))
+                    }
+                    placeholder="uploads"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="drawer-field field-span-2">
+                  <span>CDN 域名</span>
+                  <input
+                    className="drawer-text-input"
+                    value={imageUploadSettings.cdnHost}
+                    onChange={(event) =>
+                      setImageUploadSettings((current) => ({
+                        ...current,
+                        cdnHost: event.target.value
+                      }))
+                    }
+                    placeholder="https://cdn.jsdelivr.net"
+                    autoComplete="off"
+                  />
+                </label>
               </div>
             </section>
 

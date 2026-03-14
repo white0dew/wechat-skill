@@ -6,3 +6,4 @@ coverage
 .trae
 output
 task.md
+.env
