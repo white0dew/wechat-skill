@@ -4,7 +4,7 @@ export type ThemeDraft = {
   id: string;
   label: string;
   summary: string;
-  baseThemeName: keyof typeof themes;
+  baseThemeName: Extract<keyof typeof themes, string>;
   fontFamily: string;
   bodyColor: string;
   headingColor: string;

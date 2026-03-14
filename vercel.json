@@ -1,4 +1,4 @@
 {
-  "buildCommand": "npm run build --workspace @md2wechat/web",
+  "buildCommand": "npm run build",
   "outputDirectory": "apps/web/dist"
 }
