@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import type { Connect, Plugin } from "vite";
 
-type UploadImageApiEnv = Record<string, string | undefined>;
+export type UploadImageApiEnv = Record<string, string | undefined>;
 
 type UploadImageSettings = {
   githubToken: string;
@@ -244,7 +244,7 @@ async function readFormData(req: IncomingMessage) {
   return request.formData();
 }
 
-async function handleUploadRequest(
+export async function handleUploadNodeRequest(
   req: IncomingMessage,
   res: ServerResponse,
   env: UploadImageApiEnv
@@ -295,7 +295,7 @@ export function createImageUploadApiPlugin(env: UploadImageApiEnv): Plugin {
       return;
     }
 
-    void handleUploadRequest(req, res, env).catch((error) => {
+    void handleUploadNodeRequest(req, res, env).catch((error) => {
       sendJson(res, 500, {
         error: error instanceof Error ? error.message : "图片上传接口异常"
       });
