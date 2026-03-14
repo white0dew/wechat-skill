@@ -1,0 +1,14 @@
+{
+  "name": "@md2wechat/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "md2wechat": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup src/cli.ts --format esm --clean --out-dir dist"
+  },
+  "dependencies": {
+    "@md2wechat/core": "*"
+  }
+}

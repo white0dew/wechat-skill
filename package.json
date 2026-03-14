@@ -1,0 +1,26 @@
+{
+  "name": "md2wechat",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @md2wechat/core && npm run build --workspace @md2wechat/cli && npm run build --workspace @md2wechat/web",
+    "test": "npm run test --workspace @md2wechat/core",
+    "dev": "npm run dev --workspace @md2wechat/web"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "jsdom": "^27.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10",
+    "vitest": "^3.2.4"
+  }
+}
