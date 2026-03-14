@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
     "@md2wechat/core": "*",
+    "next": "^15.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   }

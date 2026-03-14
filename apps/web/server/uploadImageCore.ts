@@ -1,7 +1,4 @@
 import { Buffer } from "node:buffer";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { Readable } from "node:stream";
-import type { Connect, Plugin } from "vite";
 
 export type UploadImageApiEnv = Record<string, string | undefined>;
 
@@ -20,6 +17,21 @@ type UploadFile = {
   type: string;
 };
 
+export type UploadedImage = {
+  alt: string;
+  path: string;
+  url: string;
+};
+
+export class UploadApiError extends Error {
+  statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 const uploadEnvMap = {
   githubToken: "MD2WECHAT_GITHUB_TOKEN",
   githubOwner: "MD2WECHAT_GITHUB_OWNER",
@@ -28,12 +40,6 @@ const uploadEnvMap = {
   pathPrefix: "MD2WECHAT_GITHUB_PATH_PREFIX",
   cdnHost: "MD2WECHAT_CDN_HOST"
 } satisfies Record<keyof UploadImageSettings, string>;
-
-function sendJson(res: ServerResponse, statusCode: number, payload: unknown) {
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify(payload));
-}
 
 function readTextField(formData: FormData, field: keyof UploadImageSettings) {
   const value = formData.get(field);
@@ -57,24 +63,24 @@ function resolveUploadSettings(
     pathPrefix:
       readEnvValue(env, "pathPrefix") || readTextField(formData, "pathPrefix") || "uploads",
     cdnHost:
-      readEnvValue(env, "cdnHost") || readTextField(formData, "cdnHost") || "https://cdn.jsdelivr.net"
+      readEnvValue(env, "cdnHost") ||
+      readTextField(formData, "cdnHost") ||
+      "https://cdn.jsdelivr.net"
   };
 }
 
 function validateUploadSettings(settings: UploadImageSettings) {
   if (!settings.githubToken) {
-    return "请先配置 GitHub Token";
+    throw new UploadApiError(400, "请先配置 GitHub Token");
   }
 
   if (!settings.githubOwner || !settings.githubRepo) {
-    return "请先配置 GitHub 仓库 Owner 和 Repo";
+    throw new UploadApiError(400, "请先配置 GitHub 仓库 Owner 和 Repo");
   }
 
   if (!settings.githubBranch) {
-    return "请先配置 GitHub 分支名";
+    throw new UploadApiError(400, "请先配置 GitHub 分支名");
   }
-
-  return null;
 }
 
 function sanitizePathSegment(value: string) {
@@ -135,10 +141,12 @@ function buildUploadPath(file: UploadFile, settings: UploadImageSettings) {
 }
 
 function buildAltText(file: UploadFile) {
-  return file.name
-    .replace(/\.[^.]+$/, "")
-    .replace(/[_-]+/g, " ")
-    .trim() || "image";
+  return (
+    file.name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .trim() || "image"
+  );
 }
 
 function buildContentApiUrl(settings: UploadImageSettings, path: string) {
@@ -172,24 +180,28 @@ function formatGitHubError(payload: unknown, fallback: string) {
   return fallback;
 }
 
-function isUploadFile(value: unknown): value is UploadFile {
+function asUploadFile(value: unknown): UploadFile {
   if (!value || typeof value !== "object") {
-    return false;
+    throw new UploadApiError(400, "缺少图片文件");
   }
 
-  return (
+  if (
     "arrayBuffer" in value &&
     typeof value.arrayBuffer === "function" &&
     "name" in value &&
     typeof value.name === "string" &&
     "type" in value &&
     typeof value.type === "string"
-  );
+  ) {
+    return value as UploadFile;
+  }
+
+  throw new UploadApiError(400, "缺少图片文件");
 }
 
 async function uploadImageToGitHub(file: UploadFile, settings: UploadImageSettings) {
   if (!file.type.startsWith("image/")) {
-    throw new Error("仅支持上传图片文件");
+    throw new UploadApiError(400, "仅支持上传图片文件");
   }
 
   const path = buildUploadPath(file, settings);
@@ -217,7 +229,8 @@ async function uploadImageToGitHub(file: UploadFile, settings: UploadImageSettin
       payload = null;
     }
 
-    throw new Error(
+    throw new UploadApiError(
+      502,
       formatGitHubError(payload, `上传失败（${response.status} ${response.statusText}）`)
     );
   }
@@ -229,86 +242,12 @@ async function uploadImageToGitHub(file: UploadFile, settings: UploadImageSettin
   };
 }
 
-async function readFormData(req: IncomingMessage) {
-  const init: RequestInit & { duplex?: "half" } = {
-    method: req.method,
-    headers: req.headers as HeadersInit
-  };
-
-  if (req.method && !["GET", "HEAD"].includes(req.method.toUpperCase())) {
-    init.body = Readable.toWeb(req) as ReadableStream<Uint8Array>;
-    init.duplex = "half";
-  }
-
-  const request = new Request(`http://localhost${req.url ?? "/api/upload-image"}`, init);
-  return request.formData();
-}
-
-export async function handleUploadNodeRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
+export async function uploadImageFromFormData(
+  formData: FormData,
   env: UploadImageApiEnv
-) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    sendJson(res, 405, { error: "Method Not Allowed" });
-    return;
-  }
-
-  const formData = await readFormData(req);
-  const file = formData.get("file");
-
-  if (!isUploadFile(file)) {
-    sendJson(res, 400, { error: "缺少图片文件" });
-    return;
-  }
-
+): Promise<UploadedImage> {
+  const file = asUploadFile(formData.get("file"));
   const settings = resolveUploadSettings(formData, env);
-  const validationError = validateUploadSettings(settings);
-  if (validationError) {
-    sendJson(res, 400, { error: validationError });
-    return;
-  }
-
-  try {
-    const uploaded = await uploadImageToGitHub(file, settings);
-    sendJson(res, 200, uploaded);
-  } catch (error) {
-    sendJson(res, 502, {
-      error: error instanceof Error ? error.message : "图片上传失败"
-    });
-  }
-}
-
-function isUploadRoute(url?: string) {
-  if (!url) {
-    return false;
-  }
-
-  return new URL(url, "http://localhost").pathname === "/api/upload-image";
-}
-
-export function createImageUploadApiPlugin(env: UploadImageApiEnv): Plugin {
-  const middleware: Connect.NextHandleFunction = (req, res, next) => {
-    if (!isUploadRoute(req.url)) {
-      next();
-      return;
-    }
-
-    void handleUploadNodeRequest(req, res, env).catch((error) => {
-      sendJson(res, 500, {
-        error: error instanceof Error ? error.message : "图片上传接口异常"
-      });
-    });
-  };
-
-  return {
-    name: "md2wechat-image-upload-api",
-    configureServer(server) {
-      server.middlewares.use(middleware);
-    },
-    configurePreviewServer(server) {
-      server.middlewares.use(middleware);
-    }
-  };
+  validateUploadSettings(settings);
+  return uploadImageToGitHub(file, settings);
 }
