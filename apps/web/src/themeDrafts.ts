@@ -25,6 +25,10 @@ function sanitizeId(value: string) {
     .replace(/^-+|-+$/g, "") || "local-theme";
 }
 
+export function normalizeThemeId(value: string) {
+  return sanitizeId(value);
+}
+
 function buildHeadingStyles(
   styles: ThemeStyles,
   headingColor: string,
@@ -162,7 +166,20 @@ export function loadThemeDrafts(): ThemeDraft[] {
     }
 
     const parsed = JSON.parse(raw) as ThemeDraft[];
-    return parsed.filter((item) => Boolean(item.id && item.label));
+    const seen = new Set<string>();
+    return parsed
+      .filter((item) => Boolean(item.id && item.label))
+      .map((item) => ({
+        ...item,
+        id: normalizeThemeId(item.id)
+      }))
+      .filter((item) => {
+        if (seen.has(item.id)) {
+          return false;
+        }
+        seen.add(item.id);
+        return true;
+      });
   } catch {
     return [];
   }

@@ -22,6 +22,7 @@ import {
   draftToTheme,
   exportThemeCode,
   loadThemeDrafts,
+  normalizeThemeId,
   saveThemeDrafts,
   type ThemeDraft
 } from "./themeDrafts";
@@ -81,6 +82,14 @@ function getThemeModalFromSearch() {
   return typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("modal") === "themes"
     : false;
+}
+
+function getThemeFromSearch() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const value = new URLSearchParams(window.location.search).get("theme");
+  return value && value.trim() ? value.trim() : null;
 }
 
 function getThemeSwatches(theme: AppTheme) {
@@ -309,6 +318,8 @@ function ThemeLabPage({
   onRemoveDraft,
   onOpenDraft,
   onUseDraft,
+  onExportDrafts,
+  onImportDrafts,
   generatedTs,
   copiedTs,
   onCopyThemeTs,
@@ -322,11 +333,14 @@ function ThemeLabPage({
   onRemoveDraft: (id: string) => void;
   onOpenDraft: (draft: ThemeDraft) => void;
   onUseDraft: (draft: ThemeDraft) => void;
+  onExportDrafts: () => void;
+  onImportDrafts: (files: FileList | null) => void;
   generatedTs: string;
   copiedTs: boolean;
   onCopyThemeTs: () => Promise<void>;
   onExportThemeTs: () => void;
 }) {
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const draftPreviewTheme = useMemo(() => draftToTheme(draft), [draft]);
   const preview = renderMarkdownToWechat(labPreviewMarkdown, {
     theme: draftPreviewTheme
@@ -419,6 +433,16 @@ function ThemeLabPage({
             <button type="button" className="action-button primary" onClick={onSaveDraft}>
               保存到本地
             </button>
+            <button type="button" className="action-button" onClick={onExportDrafts}>
+              导出主题 JSON
+            </button>
+            <button
+              type="button"
+              className="action-button"
+              onClick={() => importInputRef.current?.click()}
+            >
+              导入主题
+            </button>
             <button type="button" className="action-button" onClick={onCopyThemeTs}>
               {copiedTs ? "已复制 TS" : "复制 TS"}
             </button>
@@ -428,6 +452,16 @@ function ThemeLabPage({
             <button type="button" className="action-button" onClick={() => setDraft(createEmptyDraft())}>
               新建草稿
             </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json"
+              style={{ display: "none" }}
+              onChange={(event) => {
+                onImportDrafts(event.currentTarget.files);
+                event.currentTarget.value = "";
+              }}
+            />
           </div>
 
           <div className="saved-theme-block">
@@ -512,6 +546,9 @@ export default function App() {
     previewFontSize: 16
   });
   const [draft, setDraft] = useState<ThemeDraft>(createEmptyDraft);
+  const themeFromSearchRef = useRef<string | null>(
+    typeof window === "undefined" ? null : getThemeFromSearch()
+  );
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const syncingRef = useRef<"editor" | "preview" | null>(null);
@@ -572,6 +609,21 @@ export default function App() {
       setThemeName(builtinThemes[0]?.name ?? "default");
     }
   }, [availableThemes, builtinThemes, themeName]);
+
+  useEffect(() => {
+    const requested = themeFromSearchRef.current;
+    if (!requested) {
+      return;
+    }
+    const normalized = normalizeThemeId(requested);
+    const target = availableThemes.find(
+      (theme) => theme.name === requested || theme.name === normalized
+    );
+    if (target) {
+      setThemeName(target.name);
+      themeFromSearchRef.current = null;
+    }
+  }, [availableThemes]);
 
   useEffect(
     () => () => {
@@ -777,10 +829,14 @@ export default function App() {
         "text/plain": new Blob([plainText], { type: "text/plain" })
       });
 
-      await navigator.clipboard.write([item]);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-      return;
+      try {
+        await navigator.clipboard.write([item]);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+        return;
+      } catch {
+        // Fall back to selection-based copy below.
+      }
     }
 
     const tempContainer = document.createElement("div");
@@ -833,17 +889,143 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  function exportThemeDrafts() {
+    if (themeDrafts.length === 0) {
+      window.alert("当前没有已保存主题可以导出。");
+      return;
+    }
+
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      drafts: themeDrafts
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `md2wechat-themes-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function coerceDraft(input: Partial<ThemeDraft>): ThemeDraft | null {
+    if (!input || typeof input !== "object") {
+      return null;
+    }
+
+    const fallback = createEmptyDraft();
+    const baseThemeName = builtinThemes.some((theme) => theme.name === input.baseThemeName)
+      ? (input.baseThemeName as ThemeDraft["baseThemeName"])
+      : fallback.baseThemeName;
+
+    return {
+      ...fallback,
+      id:
+        typeof input.id === "string" && input.id.trim()
+          ? input.id.trim()
+          : fallback.id,
+      label:
+        typeof input.label === "string" && input.label.trim()
+          ? input.label.trim()
+          : fallback.label,
+      summary: typeof input.summary === "string" ? input.summary : fallback.summary,
+      baseThemeName,
+      fontFamily: typeof input.fontFamily === "string" ? input.fontFamily : fallback.fontFamily,
+      bodyColor: typeof input.bodyColor === "string" ? input.bodyColor : fallback.bodyColor,
+      headingColor: typeof input.headingColor === "string" ? input.headingColor : fallback.headingColor,
+      accentColor: typeof input.accentColor === "string" ? input.accentColor : fallback.accentColor,
+      backgroundColor:
+        typeof input.backgroundColor === "string" ? input.backgroundColor : fallback.backgroundColor,
+      quoteBackground:
+        typeof input.quoteBackground === "string" ? input.quoteBackground : fallback.quoteBackground,
+      codeBackground:
+        typeof input.codeBackground === "string" ? input.codeBackground : fallback.codeBackground,
+      imageBorder: typeof input.imageBorder === "string" ? input.imageBorder : fallback.imageBorder
+    };
+  }
+
+  async function importThemeDrafts(files: FileList | null) {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const file = files[0];
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch (error) {
+      window.alert(
+        `主题导入失败：${error instanceof Error ? error.message : "JSON 解析失败"}`
+      );
+      return;
+    }
+
+    const rawDrafts = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as { drafts?: unknown }).drafts)
+        ? (parsed as { drafts: unknown[] }).drafts
+        : null;
+
+    if (!rawDrafts) {
+      window.alert("主题导入失败：JSON 格式不正确（需要数组或包含 drafts 数组）。");
+      return;
+    }
+
+    const builtinNames = new Set(builtinThemes.map((theme) => theme.name));
+    const imported = rawDrafts
+      .map((item) => coerceDraft(item as Partial<ThemeDraft>))
+      .filter((item): item is ThemeDraft => Boolean(item))
+      .map((item) => ({ ...item, id: normalizeThemeId(item.id) }))
+      .filter((item) => !builtinNames.has(item.id));
+
+    if (imported.length === 0) {
+      window.alert("主题导入失败：没有可用的主题（可能与内置主题冲突）。");
+      return;
+    }
+
+    setThemeDrafts((current) => {
+      const map = new Map<string, ThemeDraft>();
+      for (const item of imported) {
+        map.set(item.id, item);
+      }
+      for (const item of current) {
+        const normalizedId = normalizeThemeId(item.id);
+        if (!map.has(normalizedId)) {
+          map.set(normalizedId, { ...item, id: normalizedId });
+        }
+      }
+      return Array.from(map.values());
+    });
+
+    const ignored = rawDrafts.length - imported.length;
+    window.alert(
+      `已导入 ${imported.length} 个主题${ignored > 0 ? `，忽略 ${ignored} 个无效或冲突主题` : ""}。`
+    );
+  }
+
   function upsertDraft() {
+    const normalizedId = normalizeThemeId(draft.id);
+    const hasBuiltinConflict = builtinThemes.some((theme) => theme.name === normalizedId);
+    if (hasBuiltinConflict) {
+      window.alert("主题 ID 与内置主题重复，请更换 ID。");
+      return;
+    }
+
     const nextDraft = {
       ...draft,
-      id: draft.id.trim() || "custom-sandbox",
+      id: normalizedId || "custom-sandbox",
       label: draft.label.trim() || "Custom Sandbox",
       summary: draft.summary.trim() || "本地实验主题，用来验证新主题方案。"
     };
 
     setDraft(nextDraft);
     setThemeDrafts((current) => {
-      const index = current.findIndex((item) => item.id === nextDraft.id);
+      const index = current.findIndex(
+        (item) => normalizeThemeId(item.id) === nextDraft.id
+      );
       if (index === -1) {
         return [nextDraft, ...current];
       }
@@ -983,6 +1165,8 @@ export default function App() {
               onRemoveDraft={removeDraft}
               onOpenDraft={openDraft}
               onUseDraft={useDraftInEditor}
+              onExportDrafts={exportThemeDrafts}
+              onImportDrafts={importThemeDrafts}
               generatedTs={generatedTs}
               copiedTs={copiedTs}
               onCopyThemeTs={copyThemeTs}
@@ -1080,102 +1264,104 @@ export default function App() {
               </div>
             </section>
 
-            <section className="drawer-section">
-              <SectionTitle title="图片上传" />
-              <div className="drawer-form-grid">
-                <label className="drawer-field field-span-2">
-                  <span>GitHub Token</span>
-                  <input
-                    className="drawer-text-input"
-                    type="password"
-                    value={imageUploadSettings.githubToken}
-                    onChange={(event) =>
-                      setImageUploadSettings((current) => ({
-                        ...current,
-                        githubToken: event.target.value
-                      }))
-                    }
-                    placeholder="ghp_xxx 或 fine-grained token"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="drawer-field">
-                  <span>Owner</span>
-                  <input
-                    className="drawer-text-input"
-                    value={imageUploadSettings.githubOwner}
-                    onChange={(event) =>
-                      setImageUploadSettings((current) => ({
-                        ...current,
-                        githubOwner: event.target.value
-                      }))
-                    }
-                    placeholder="yourname"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="drawer-field">
-                  <span>Repo</span>
-                  <input
-                    className="drawer-text-input"
-                    value={imageUploadSettings.githubRepo}
-                    onChange={(event) =>
-                      setImageUploadSettings((current) => ({
-                        ...current,
-                        githubRepo: event.target.value
-                      }))
-                    }
-                    placeholder="md2wechat-assets"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="drawer-field">
-                  <span>Branch</span>
-                  <input
-                    className="drawer-text-input"
-                    value={imageUploadSettings.githubBranch}
-                    onChange={(event) =>
-                      setImageUploadSettings((current) => ({
-                        ...current,
-                        githubBranch: event.target.value
-                      }))
-                    }
-                    placeholder="main"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="drawer-field">
-                  <span>目录</span>
-                  <input
-                    className="drawer-text-input"
-                    value={imageUploadSettings.pathPrefix}
-                    onChange={(event) =>
-                      setImageUploadSettings((current) => ({
-                        ...current,
-                        pathPrefix: event.target.value
-                      }))
-                    }
-                    placeholder="uploads"
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="drawer-field field-span-2">
-                  <span>CDN 域名</span>
-                  <input
-                    className="drawer-text-input"
-                    value={imageUploadSettings.cdnHost}
-                    onChange={(event) =>
-                      setImageUploadSettings((current) => ({
-                        ...current,
-                        cdnHost: event.target.value
-                      }))
-                    }
-                    placeholder="https://cdn.jsdelivr.net"
-                    autoComplete="off"
-                  />
-                </label>
-              </div>
-            </section>
+            {false && (
+              <section className="drawer-section">
+                <SectionTitle title="图片上传" />
+                <div className="drawer-form-grid">
+                  <label className="drawer-field field-span-2">
+                    <span>GitHub Token</span>
+                    <input
+                      className="drawer-text-input"
+                      type="password"
+                      value={imageUploadSettings.githubToken}
+                      onChange={(event) =>
+                        setImageUploadSettings((current) => ({
+                          ...current,
+                          githubToken: event.target.value
+                        }))
+                      }
+                      placeholder="ghp_xxx 或 fine-grained token"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Owner</span>
+                    <input
+                      className="drawer-text-input"
+                      value={imageUploadSettings.githubOwner}
+                      onChange={(event) =>
+                        setImageUploadSettings((current) => ({
+                          ...current,
+                          githubOwner: event.target.value
+                        }))
+                      }
+                      placeholder="yourname"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Repo</span>
+                    <input
+                      className="drawer-text-input"
+                      value={imageUploadSettings.githubRepo}
+                      onChange={(event) =>
+                        setImageUploadSettings((current) => ({
+                          ...current,
+                          githubRepo: event.target.value
+                        }))
+                      }
+                      placeholder="md2wechat-assets"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="drawer-field">
+                    <span>Branch</span>
+                    <input
+                      className="drawer-text-input"
+                      value={imageUploadSettings.githubBranch}
+                      onChange={(event) =>
+                        setImageUploadSettings((current) => ({
+                          ...current,
+                          githubBranch: event.target.value
+                        }))
+                      }
+                      placeholder="main"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="drawer-field">
+                    <span>目录</span>
+                    <input
+                      className="drawer-text-input"
+                      value={imageUploadSettings.pathPrefix}
+                      onChange={(event) =>
+                        setImageUploadSettings((current) => ({
+                          ...current,
+                          pathPrefix: event.target.value
+                        }))
+                      }
+                      placeholder="uploads"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="drawer-field field-span-2">
+                    <span>CDN 域名</span>
+                    <input
+                      className="drawer-text-input"
+                      value={imageUploadSettings.cdnHost}
+                      onChange={(event) =>
+                        setImageUploadSettings((current) => ({
+                          ...current,
+                          cdnHost: event.target.value
+                        }))
+                      }
+                      placeholder="https://cdn.jsdelivr.net"
+                      autoComplete="off"
+                    />
+                  </label>
+                </div>
+              </section>
+            )}
 
             <section className="drawer-section">
               <SectionTitle title="编辑体验" />

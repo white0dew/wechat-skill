@@ -7,3 +7,8 @@ coverage
 output
 task.md
 .env
+.skills-lock.json
+test.md
+tmp
+apps/web/.next
+apps/web/node_modules

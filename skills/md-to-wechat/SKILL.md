@@ -35,14 +35,13 @@ node packages/cli/dist/cli.js article.md --theme minimal --out wechat.html
 echo '# 标题' | node packages/cli/dist/cli.js --theme default
 ```
 
-也支持通过 CDP 自动把远程网页正文写进当前 Web App，再触发复制或导出：
+也支持通过 CDP 自动把 Markdown 写进当前 Web App，再触发复制或导出：
 
 ```bash
 node skills/md-to-wechat/scripts/cdp_export.mjs \
-  --source "https://example.com/article" \
+  --markdown-file "article.md" \
   --app "http://127.0.0.1:4173/#/" \
   --cdp "http://127.0.0.1:9222" \
-  --selector "article" \
   --action export-html
 ```
 
@@ -51,10 +50,31 @@ node skills/md-to-wechat/scripts/cdp_export.mjs \
 ```bash
 node skills/md-to-wechat/scripts/cdp_export.mjs \
   --launch-local \
-  --source "https://example.com/article" \
-  --selector "article" \
+  --markdown-file "article.md" \
+  --theme "default" \
   --action copy-rich
 ```
+
+如果需要自动打开公众号后台并粘贴：
+
+```bash
+node skills/md-to-wechat/scripts/cdp_export.mjs \
+  --cdp "http://127.0.0.1:9222" \
+  --app "http://127.0.0.1:4173/#/" \
+  --markdown-file "article.md" \
+  --theme "default" \
+  --action copy-rich \
+  --wechat
+```
+
+可选参数：
+
+- `--title` `--author` `--summary`：覆盖 Markdown 自动解析的标题/作者/摘要
+- `--cover`：指定封面图片路径（本地文件）
+- `--delay-scale` / `--jitter-ms`：放大等待时间并增加随机抖动（默认 `3` / `800`）
+- `--no-submit`：不保存草稿（`--wechat` 默认会保存草稿）
+- `--copy-strategy selection`：改为“选中预览区 + 系统复制”的稳定路径（默认点击页面“复制富文本”按钮）
+- `--no-original`：不勾选原创声明（默认自动标记原创）
 
 ## 注意事项
 
