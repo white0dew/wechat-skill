@@ -2,7 +2,11 @@ node_modules
 dist
 coverage
 .DS_Store
-.agents
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/md-to-wechat/
+!.agents/skills/md-to-wechat/**
 .trae
 output
 task.md

@@ -38,7 +38,7 @@ echo '# 标题' | node packages/cli/dist/cli.js --theme default
 也支持通过 CDP 自动把 Markdown 写进当前 Web App，再触发复制或导出：
 
 ```bash
-node skills/md-to-wechat/scripts/cdp_export.mjs \
+node .agents/skills/md-to-wechat/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
   --app "http://127.0.0.1:4173/#/" \
   --cdp "http://127.0.0.1:9222" \
@@ -48,7 +48,7 @@ node skills/md-to-wechat/scripts/cdp_export.mjs \
 如果本地还没启动带 CDP 的 Chrome，也可以让脚本直接拉起本地浏览器：
 
 ```bash
-node skills/md-to-wechat/scripts/cdp_export.mjs \
+node .agents/skills/md-to-wechat/scripts/cdp_export.mjs \
   --launch-local \
   --markdown-file "article.md" \
   --theme "default" \
@@ -58,7 +58,7 @@ node skills/md-to-wechat/scripts/cdp_export.mjs \
 如果需要自动打开公众号后台并粘贴：
 
 ```bash
-node skills/md-to-wechat/scripts/cdp_export.mjs \
+node .agents/skills/md-to-wechat/scripts/cdp_export.mjs \
   --cdp "http://127.0.0.1:9222" \
   --app "http://127.0.0.1:4173/#/" \
   --markdown-file "article.md" \
