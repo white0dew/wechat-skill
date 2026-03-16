@@ -1,0 +1,4 @@
+interface:
+  display_name: "md-to-wechat"
+  short_description: "Markdown to WeChat HTML + CDP paste"
+  default_prompt: "Use $md-to-wechat to convert a markdown file and paste it into WeChat via CDP."

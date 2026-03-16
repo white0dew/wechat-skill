@@ -1,85 +1,92 @@
+---
+name: md-to-wechat
+description: Convert Markdown to WeChat-ready HTML and optionally automate the md2wechat web app plus WeChat Official Account backend via Chrome CDP. Use when the user asks to convert .md to WeChat HTML, copy rich text, select themes (including URL ?theme=), or auto-fill/save a WeChat draft.
+---
+
 # md-to-wechat
 
-将 Markdown 转成更适合粘贴进微信公众号后台、并且还能继续编辑的内联样式 HTML。
+## Language
 
-## 何时使用
+- Respond in the user's language.
 
-- 用户要求把一段 Markdown 或 `.md` 文件转成微信公众号可用 HTML
-- 用户希望切换排版主题后导出 HTML
-- 用户希望先在本地预览，再复制到公众号后台
+## Resolve Base Directory
 
-## 输入
+- Set `{baseDir}` to the directory containing this `SKILL.md`.
 
-- 一段 Markdown 文本
-- 或一个 `.md` 文件路径
-- 可选主题：`default`、`minimal`
+## Scripts
 
-## 输出
+| Script | Purpose |
+| --- | --- |
+| `scripts/cdp_export.mjs` | Drive the web app + WeChat backend via CDP and copy/paste rich text |
+| `scripts/run.mjs` | Thin wrapper around the CLI (`packages/cli`) |
 
-- 一份微信兼容 HTML
-- 可选输出到指定文件
+## Non-negotiables
 
-## 调用方式
+- Use Chrome CDP for browser automation; do not use `agent-browser` for this skill.
+- Default to the "复制富文本" button path; only use selection copy when explicitly requested or the button fails.
 
-优先使用 CLI：
+## Prereqs
+
+- Node.js available (`node`).
+- md2wechat web app running (default `http://127.0.0.1:4173/#/`).
+- Chrome/Edge with remote debugging enabled for `--cdp`, or allow `--launch-local` to start a local Chrome.
+- Logged-in WeChat Official Account session if using `--wechat`.
+
+## Quick start
+
+CLI conversion:
 
 ```bash
-npm run build --workspace @md2wechat/core
-npm run build --workspace @md2wechat/cli
-node packages/cli/dist/cli.js article.md --theme minimal --out wechat.html
+node {baseDir}/scripts/run.mjs article.md --theme minimal --out wechat.html
 ```
 
-也支持 stdin：
+CDP copy only:
 
 ```bash
-echo '# 标题' | node packages/cli/dist/cli.js --theme default
-```
-
-也支持通过 CDP 自动把 Markdown 写进当前 Web App，再触发复制或导出：
-
-```bash
-node .agents/skills/md-to-wechat/scripts/cdp_export.mjs \
+node {baseDir}/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
   --app "http://127.0.0.1:4173/#/" \
   --cdp "http://127.0.0.1:9222" \
-  --action export-html
-```
-
-如果本地还没启动带 CDP 的 Chrome，也可以让脚本直接拉起本地浏览器：
-
-```bash
-node .agents/skills/md-to-wechat/scripts/cdp_export.mjs \
-  --launch-local \
-  --markdown-file "article.md" \
-  --theme "default" \
   --action copy-rich
 ```
 
-如果需要自动打开公众号后台并粘贴：
+CDP + WeChat backend:
 
 ```bash
-node .agents/skills/md-to-wechat/scripts/cdp_export.mjs \
-  --cdp "http://127.0.0.1:9222" \
-  --app "http://127.0.0.1:4173/#/" \
+node {baseDir}/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
-  --theme "default" \
+  --app "http://127.0.0.1:4173/#/" \
+  --cdp "http://127.0.0.1:9222" \
   --action copy-rich \
   --wechat
 ```
 
-可选参数：
+## Inputs and metadata
 
-- `--title` `--author` `--summary`：覆盖 Markdown 自动解析的标题/作者/摘要
-- `--cover`：指定封面图片路径（本地文件）
-- `--delay-scale` / `--jitter-ms`：放大等待时间并增加随机抖动（默认 `3` / `800`）
-- `--no-submit`：不保存草稿（`--wechat` 默认会保存草稿）
-- `--copy-strategy selection`：改为“选中预览区 + 系统复制”的稳定路径（默认点击页面“复制富文本”按钮）
-- `--no-original`：不勾选原创声明（默认自动标记原创）
+- Accept Markdown via `--markdown-file`, stdin, or `--markdown` text.
+- Parse frontmatter: `title`, `author`, `summary`, `coverImage`, `featureImage`, `cover`, `image`.
+- Allow CLI overrides: `--title`, `--author`, `--summary`, `--cover`.
+- Default `--wechat` saves draft unless `--no-submit`.
+- Default to mark original unless `--no-original`.
 
-## 注意事项
+## Theme selection
 
-- Web Demo、CLI 和后续后端都必须走同一个 `@md2wechat/core`
-- 当前图片仍以外链占位，不包含素材上传
-- 若用户要求新增普通主题，优先新增 theme token，不要复制渲染逻辑
-- `cdp_export.mjs` 适合把网页正文抽取后写进当前 Web App，再触发 `复制富文本` 或 `导出 HTML`
-- 对复杂站点建议显式传 `--selector`，不要默认依赖整页 `document.body.innerText`
+- Add `?theme=<name>` to the app URL to preselect a theme.
+- Support built-in themes plus locally saved theme drafts.
+- See `references/theme-lab.md` for import/export format and naming rules.
+
+## Timing and stability
+
+- Use `--delay-scale` and `--jitter-ms` to slow down UI steps and add random jitter.
+- Keep waits generous on WeChat backend UI transitions.
+
+## Vendoring external deps
+
+- If a script needs third-party packages, vendor them under `{baseDir}/scripts/vendor/` and reference via `file:` in `{baseDir}/scripts/package.json`.
+- Keep vendor dependencies pinned and minimal.
+
+## References
+
+- `references/wechat-cdp.md`: CDP flow, selectors, and original declaration steps.
+- `references/theme-lab.md`: theme draft import/export and URL selection rules.
+- `references/troubleshooting.md`: common failure modes and fixes.
