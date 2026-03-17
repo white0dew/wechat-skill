@@ -119,7 +119,7 @@ export async function uploadImageFile(
     throw new Error("图片上传接口返回异常");
   }
 
-  const alt = "alt" in payload && typeof payload.alt === "string" ? payload.alt : file.name || "image";
+  const alt = "alt" in payload && typeof payload.alt === "string" ? payload.alt : "";
   const path = "path" in payload && typeof payload.path === "string" ? payload.path : "";
   const url = "url" in payload && typeof payload.url === "string" ? payload.url : "";
   if (!path || !url) {

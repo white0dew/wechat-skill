@@ -19,6 +19,7 @@ import {
 } from "./imageUpload";
 import {
   createEmptyDraft,
+  createDraftFromTheme,
   draftToTheme,
   exportThemeCode,
   loadThemeDrafts,
@@ -240,7 +241,8 @@ function ThemePickerModal({
   selectedTheme,
   modalPreviewMap,
   onClose,
-  onSelect
+  onSelect,
+  onCreate
 }: {
   open: boolean;
   themes: AppTheme[];
@@ -248,6 +250,7 @@ function ThemePickerModal({
   modalPreviewMap: Map<string, string>;
   onClose: () => void;
   onSelect: (theme: AppTheme) => void;
+  onCreate: () => void;
 }) {
   if (!open) {
     return null;
@@ -274,6 +277,15 @@ function ThemePickerModal({
         </div>
 
         <div className="theme-picker-grid">
+          <button
+            type="button"
+            className="theme-picker-card theme-picker-new"
+            onClick={onCreate}
+          >
+            <div className="theme-picker-new-icon">+</div>
+            <div className="theme-picker-new-title">新建主题</div>
+            <p>进入主题实验室，可从零开始或基于推荐主题调整。</p>
+          </button>
           {themes.map((theme) => {
             const active = theme.name === selectedTheme.name;
             return (
@@ -314,13 +326,13 @@ function ThemeLabPage({
   draft,
   setDraft,
   themeDrafts,
+  onClose,
   onSaveDraft,
   onRemoveDraft,
   onOpenDraft,
   onUseDraft,
   onExportDrafts,
   onImportDrafts,
-  generatedTs,
   copiedTs,
   onCopyThemeTs,
   onExportThemeTs
@@ -329,13 +341,13 @@ function ThemeLabPage({
   draft: ThemeDraft;
   setDraft: React.Dispatch<React.SetStateAction<ThemeDraft>>;
   themeDrafts: ThemeDraft[];
+  onClose: () => void;
   onSaveDraft: () => void;
   onRemoveDraft: (id: string) => void;
   onOpenDraft: (draft: ThemeDraft) => void;
   onUseDraft: (draft: ThemeDraft) => void;
   onExportDrafts: () => void;
   onImportDrafts: (files: FileList | null) => void;
-  generatedTs: string;
   copiedTs: boolean;
   onCopyThemeTs: () => Promise<void>;
   onExportThemeTs: () => void;
@@ -348,6 +360,17 @@ function ThemeLabPage({
 
   return (
     <section className="page-shell theme-lab-page">
+      <div className="theme-lab-header">
+        <div className="theme-lab-header-copy">
+          <p className="eyebrow">Theme Lab</p>
+          <h1>主题实验室</h1>
+          <p>调整主题参数、预览效果，并在完成后返回编辑器继续排版。</p>
+        </div>
+        <button type="button" className="action-button" onClick={onClose}>
+          返回编辑器
+        </button>
+      </div>
+
       <div className="theme-lab-layout compact-top">
         <aside className="studio-card lab-form-card">
           <SectionTitle eyebrow="Theme Form" title="主题参数" />
@@ -506,10 +529,6 @@ function ThemeLabPage({
             </div>
           </div>
 
-          <div className="code-export-card">
-            <SectionTitle eyebrow="TypeScript Export" title="导出结果" />
-            <pre>{generatedTs}</pre>
-          </div>
         </main>
       </div>
     </section>
@@ -546,6 +565,7 @@ export default function App() {
     previewFontSize: 16
   });
   const [draft, setDraft] = useState<ThemeDraft>(createEmptyDraft);
+  const draftOriginIdRef = useRef<string | null>(null);
   const themeFromSearchRef = useRef<string | null>(
     typeof window === "undefined" ? null : getThemeFromSearch()
   );
@@ -737,9 +757,7 @@ export default function App() {
         uploaded.push(await uploadImageFile(file, imageUploadSettings));
       }
 
-      const markdownBlock = uploaded
-        .map((item) => `![${item.alt}](${item.url})`)
-        .join("\n\n");
+      const markdownBlock = uploaded.map((item) => `![](${item.url})`).join("\n\n");
       const currentValue = textareaRef.current?.value ?? markdown;
       const prefix = currentValue.trim().length === 0 ? "" : "\n\n";
       const suffix = "\n";
@@ -1014,6 +1032,16 @@ export default function App() {
       return;
     }
 
+    const existingIndex = themeDrafts.findIndex(
+      (item) => normalizeThemeId(item.id) === normalizedId
+    );
+    const originId = draftOriginIdRef.current;
+    const isEditingExisting = originId && originId === normalizedId;
+    if (existingIndex !== -1 && !isEditingExisting) {
+      window.alert("主题 ID 与已保存主题重复，请更换 ID 或从已保存主题进入编辑。");
+      return;
+    }
+
     const nextDraft = {
       ...draft,
       id: normalizedId || "custom-sandbox",
@@ -1023,14 +1051,12 @@ export default function App() {
 
     setDraft(nextDraft);
     setThemeDrafts((current) => {
-      const index = current.findIndex(
-        (item) => normalizeThemeId(item.id) === nextDraft.id
-      );
-      if (index === -1) {
+      if (existingIndex === -1) {
         return [nextDraft, ...current];
       }
-      return current.map((item, itemIndex) => (itemIndex === index ? nextDraft : item));
+      return current.map((item, itemIndex) => (itemIndex === existingIndex ? nextDraft : item));
     });
+    draftOriginIdRef.current = nextDraft.id;
   }
 
   function removeDraft(id: string) {
@@ -1039,6 +1065,14 @@ export default function App() {
 
   function openDraft(item: ThemeDraft) {
     setDraft(item);
+    draftOriginIdRef.current = normalizeThemeId(item.id);
+    navigate("theme-lab");
+  }
+
+  function createDraftFromSelectedTheme() {
+    setDraft(createDraftFromTheme(selectedTheme));
+    draftOriginIdRef.current = null;
+    setThemeModalOpen(false);
     navigate("theme-lab");
   }
 
@@ -1130,7 +1164,7 @@ export default function App() {
                         data-action="copy-rich"
                         onClick={copyRichContent}
                       >
-                        {copied ? "已复制富文本" : "复制富文本"}
+                        {copied ? "已导出微信" : "导出微信"}
                       </button>
                       <button
                         type="button"
@@ -1161,13 +1195,13 @@ export default function App() {
               draft={draft}
               setDraft={setDraft}
               themeDrafts={themeDrafts}
+              onClose={() => navigate("editor")}
               onSaveDraft={upsertDraft}
               onRemoveDraft={removeDraft}
               onOpenDraft={openDraft}
               onUseDraft={useDraftInEditor}
               onExportDrafts={exportThemeDrafts}
               onImportDrafts={importThemeDrafts}
-              generatedTs={generatedTs}
               copiedTs={copiedTs}
               onCopyThemeTs={copyThemeTs}
               onExportThemeTs={exportThemeTsFile}
@@ -1382,21 +1416,51 @@ export default function App() {
                 </span>
               </button>
             </section>
+
+            <section className="drawer-section">
+              <SectionTitle title="关于作者" />
+              <div className="drawer-promo-card" aria-label="Author promotion">
+                <div className="drawer-promo-copy">
+                  <p className="drawer-promo-kicker">by 青玉白露 (white0dew)</p>
+                  <h3>wechat-skill</h3>
+                  <p>这个网站由作者制作并持续维护，相关代码和更新记录可在 GitHub 查看。</p>
+                  <a
+                    className="drawer-promo-link"
+                    href="https://github.com/white0dew/wechat-skill"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    打开 GitHub 仓库
+                  </a>
+                </div>
+                <div className="drawer-promo-qr">
+                  <div className="drawer-promo-qr-trigger">
+                    <img src="/wechat-qr.jpg" alt="微信二维码" />
+                    <span>微信联系</span>
+                  </div>
+                  <div className="drawer-promo-qr-popover" aria-hidden="true">
+                    <img src="/wechat-qr.jpg" alt="" />
+                    <p>扫码添加微信</p>
+                  </div>
+                </div>
+              </div>
+            </section>
           </aside>
         </div>
       </div>
 
-      <ThemePickerModal
-        open={themeModalOpen}
-        themes={availableThemes}
-        selectedTheme={selectedTheme}
-        modalPreviewMap={modalPreviewMap}
-        onClose={() => setThemeModalOpen(false)}
-        onSelect={(theme) => {
-          setThemeName(theme.name);
-          setThemeModalOpen(false);
-        }}
-      />
-    </div>
+        <ThemePickerModal
+          open={themeModalOpen}
+          themes={availableThemes}
+          selectedTheme={selectedTheme}
+          modalPreviewMap={modalPreviewMap}
+          onClose={() => setThemeModalOpen(false)}
+          onSelect={(theme) => {
+            setThemeName(theme.name);
+            setThemeModalOpen(false);
+          }}
+          onCreate={createDraftFromSelectedTheme}
+        />
+      </div>
   );
 }

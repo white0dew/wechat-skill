@@ -140,15 +140,6 @@ function buildUploadPath(file: UploadFile, settings: UploadImageSettings) {
   return `${prefix}/${year}/${month}/${buildFileName(file)}`;
 }
 
-function buildAltText(file: UploadFile) {
-  return (
-    file.name
-      .replace(/\.[^.]+$/, "")
-      .replace(/[_-]+/g, " ")
-      .trim() || "image"
-  );
-}
-
 function buildContentApiUrl(settings: UploadImageSettings, path: string) {
   const encodedPath = path
     .split("/")
@@ -236,7 +227,7 @@ async function uploadImageToGitHub(file: UploadFile, settings: UploadImageSettin
   }
 
   return {
-    alt: buildAltText(file),
+    alt: "",
     path,
     url: buildCdnUrl(settings, path)
   };

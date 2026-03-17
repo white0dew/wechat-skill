@@ -29,6 +29,20 @@ export function normalizeThemeId(value: string) {
   return sanitizeId(value);
 }
 
+function normalizeColor(value: string | number | undefined, fallback: string) {
+  return typeof value === "string" ? value : fallback;
+}
+
+function extractBorderColor(value: string | number | undefined, fallback: string) {
+  if (typeof value === "string") {
+    const token = value.trim().split(" ").at(-1);
+    if (token) {
+      return token;
+    }
+  }
+  return fallback;
+}
+
 function buildHeadingStyles(
   styles: ThemeStyles,
   headingColor: string,
@@ -84,6 +98,47 @@ export function createEmptyDraft(): ThemeDraft {
     quoteBackground: "#fff7ed",
     codeBackground: "#172033",
     imageBorder: "#fdba74"
+  };
+}
+
+export function createDraftFromTheme(theme: Theme): ThemeDraft {
+  const fallback = createEmptyDraft();
+  const baseThemeName = (theme.name in themes ? theme.name : fallback.baseThemeName) as ThemeDraft["baseThemeName"];
+  const bodyColor = normalizeColor(theme.styles.container.color, fallback.bodyColor);
+  const headingColor = normalizeColor(theme.styles.headings[1].color, bodyColor);
+  const accentColor =
+    normalizeColor(theme.styles.link.color, "") ||
+    normalizeColor(theme.styles.headings[2].color, "") ||
+    headingColor;
+  const backgroundColor = normalizeColor(
+    theme.styles.container.backgroundColor,
+    fallback.backgroundColor
+  );
+  const quoteBackground = normalizeColor(
+    theme.styles.blockquote.container.backgroundColor,
+    fallback.quoteBackground
+  );
+  const codeBackground = normalizeColor(
+    theme.styles.codeBlock.pre.backgroundColor,
+    fallback.codeBackground
+  );
+  const imageBorder = extractBorderColor(theme.styles.image.image.border, accentColor);
+  const idBase = sanitizeId(theme.name);
+  const labelBase = theme.label?.trim() || "Custom Theme";
+
+  return {
+    id: `custom-${idBase}`,
+    label: `${labelBase} 变体`,
+    summary: `基于 ${labelBase} 的自定义主题。`,
+    baseThemeName,
+    fontFamily: normalizeColor(theme.styles.container.fontFamily, fallback.fontFamily),
+    bodyColor,
+    headingColor,
+    accentColor,
+    backgroundColor,
+    quoteBackground,
+    codeBackground,
+    imageBorder
   };
 }
 

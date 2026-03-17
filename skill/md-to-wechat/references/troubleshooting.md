@@ -10,7 +10,7 @@
 
 - Confirm clipboard permissions on the OS.
 - Use `--delay-scale` and `--jitter-ms` to slow UI steps.
-- Verify the "复制富文本" button exists on the page.
+- Verify the "导出微信" button exists on the page.
 
 ## WeChat login timeout
 
