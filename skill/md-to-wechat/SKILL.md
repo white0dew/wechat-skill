@@ -29,13 +29,14 @@ description: Convert Markdown to WeChat-ready HTML and optionally automate the m
 ## Non-negotiables
 
 - Use Chrome CDP for browser automation; do not use `agent-browser` for this skill.
-- Default to the "导出微信" button path; only use selection copy when explicitly requested or the button fails.
+- Default to the "复制富文本" button path; only use selection copy when explicitly requested or the button fails.
 - When `--wechat` is enabled, treat "fill metadata + paste body + save draft" as the default workflow.
 
 ## Prereqs
 
 - Node.js available (`node`).
-- md2wechat web app running (default `http://127.0.0.1:4173/#/`).
+- Default web app: `https://wechat.reshub.vip`.
+- Do not start a local web server unless the user explicitly asks for local development or debugging.
 - Chrome/Edge with remote debugging enabled for `--cdp`, or allow `--launch-local` to start a local Chrome.
 - Logged-in WeChat Official Account session if using `--wechat`.
 
@@ -61,7 +62,7 @@ CDP copy only:
 ```bash
 node {baseDir}/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
-  --app "http://127.0.0.1:4173/#/" \
+  --app "https://wechat.reshub.vip" \
   --cdp "http://127.0.0.1:9222" \
   --action copy-rich
 ```
@@ -71,7 +72,7 @@ CDP + WeChat backend:
 ```bash
 node {baseDir}/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
-  --app "http://127.0.0.1:4173/#/" \
+  --app "https://wechat.reshub.vip" \
   --cdp "http://127.0.0.1:9222" \
   --action copy-rich \
   --wechat
@@ -82,7 +83,7 @@ Theme preselection:
 ```bash
 node {baseDir}/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
-  --app "http://127.0.0.1:4173/?theme=minimal#/" \
+  --app "https://wechat.reshub.vip/?theme=minimal" \
   --cdp "http://127.0.0.1:9222" \
   --action copy-rich
 ```
@@ -92,7 +93,7 @@ Full draft example:
 ```bash
 node {baseDir}/scripts/cdp_export.mjs \
   --markdown-file "article.md" \
-  --app "http://127.0.0.1:4173/?theme=default#/" \
+  --app "https://wechat.reshub.vip/?theme=default" \
   --cdp "http://127.0.0.1:9222" \
   --action copy-rich \
   --wechat \
@@ -113,10 +114,10 @@ node {baseDir}/scripts/cdp_export.mjs \
 
 ## Defaults that matter
 
-- Default app URL: `http://127.0.0.1:4173/#/`
+- Default app URL: `https://wechat.reshub.vip`
 - Default CDP URL: `http://127.0.0.1:9222`
 - Default action: `copy-rich`
-- Default copy strategy: click the "导出微信" button
+- Default copy strategy: click the "复制富文本" button
 - Default WeChat behavior: save draft
 - Default original behavior: enabled
 - Default slow-down: `--delay-scale 3`

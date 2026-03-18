@@ -1,76 +1,72 @@
 # md2wechat
 
-把 Markdown 转成更适合微信公众号的内容，并且支持两条路径：
+把 Markdown 转成更适合微信公众号的内容，并支持通过 Chrome CDP 直接驱动网站与公众号后台，完成富文本复制、粘贴、填写元数据、保存草稿。
 
-- 生成微信兼容 HTML
-- 通过 Chrome CDP 驱动网站与公众号后台，完成富文本复制、粘贴、填写元数据、保存草稿
+如果你是给 AI / agent 用，这个仓库最重要的不是本地开发，而是：
 
-项目不是单纯的“导出一段 HTML”。它同时覆盖了：
+1. 先安装 `skill/md-to-wechat`
+2. 默认直接访问线上站点 `https://wechat.reshub.vip`
+3. 不要默认本地启动 web 服务器，除非用户明确要求本地开发或调试
 
-- `core`：Markdown -> WeChat-friendly HTML 的渲染引擎
-- `web`：可视化编辑、实时预览、主题切换、主题实验室
-- `cli`：命令行转换
-- `skill`：给 Codex / agent 使用的自动化工作流，支持 CDP 发布到公众号后台
+## 先安装 Skill
 
-## 适用场景
-
-- 把 `.md` 文章排版成微信公众号可接受的正文
-- 在本地网站里调主题，再复制富文本到公众号
-- 用 CDP 自动打开网站、点击“复制富文本”、切到公众号后台粘贴
-- 自动填写标题、作者、摘要、封面、原创声明并保存草稿
-
-## 项目结构
+仓库内置 skill：
 
 ```text
-.
-├── apps/
-│   └── web/                 # Next.js 网站
-├── packages/
-│   ├── core/                # Markdown -> WeChat HTML 核心渲染
-│   └── cli/                 # CLI
-├── skill/
-│   └── md-to-wechat/        # Codex skill，含 CDP 自动化脚本
-└── docs/
-    └── wechat-compatibility.md
+skill/md-to-wechat
 ```
 
-## 快速开始
-
-安装依赖：
+安装到 Codex 的常见方式：
 
 ```bash
-npm install
+mkdir -p ~/.codex/skills
+ln -s "$(pwd)/skill/md-to-wechat" ~/.codex/skills/md-to-wechat
 ```
 
-启动网站：
+如果不想用软链接，也可以直接复制：
 
 ```bash
-npm run dev
+mkdir -p ~/.codex/skills
+cp -R skill/md-to-wechat ~/.codex/skills/md-to-wechat
 ```
 
-默认会启动 `apps/web`，本地访问：
+安装后重启 Codex。
+
+Skill 入口说明见：
+
+- [skill/md-to-wechat/SKILL.md](/Users/jun/Desktop/Code/skill/md2wechat/skill/md-to-wechat/SKILL.md)
+
+这个 skill 明确了：
+
+- 什么时候只做 Markdown -> HTML
+- 什么时候走 CDP 自动化
+- 默认走“复制富文本”按钮
+- 默认保存草稿、默认标记原创
+- 什么时候该访问线上站点，什么时候才需要本地起服务
+
+## AI 使用约定
+
+- 默认站点：`https://wechat.reshub.vip`
+- 默认不要执行 `npm run dev`
+- 只有在用户明确要求“本地开发 / 调试 / 修改前端页面并本地验证”时，才启动本地服务
+
+对 agent 来说，优先使用这条路径：
 
 ```text
-http://127.0.0.1:3000
+Markdown -> https://wechat.reshub.vip -> 复制富文本 -> 微信公众号后台
 ```
 
-## 常用命令
+## 最常用的方式
 
-构建全部包：
+### 1. 直接访问线上站点
 
-```bash
-npm run build
+站点地址：
+
+```text
+https://wechat.reshub.vip
 ```
 
-运行测试：
-
-```bash
-npm run test
-```
-
-## Web 能力
-
-网站侧目前支持：
+支持：
 
 - Markdown 编辑
 - 实时预览
@@ -84,44 +80,29 @@ npm run test
 示例：
 
 ```text
-http://127.0.0.1:3000/?theme=default
-http://127.0.0.1:3000/?theme=minimal
+https://wechat.reshub.vip/?theme=default
+https://wechat.reshub.vip/?theme=minimal
 ```
 
-## CLI 用法
+### 2. 用 CDP 自动完成网站到公众号后台
 
-先构建：
+`skill/md-to-wechat/scripts/cdp_export.mjs` 可以：
 
-```bash
-npm run build --workspace @md2wechat/core
-npm run build --workspace @md2wechat/cli
-```
-
-然后转换 Markdown：
-
-```bash
-node packages/cli/dist/cli.js article.md --theme minimal --out wechat.html
-```
-
-也支持 stdin：
-
-```bash
-echo '# 标题' | node packages/cli/dist/cli.js --theme default
-```
-
-## CDP 自动化用法
-
-`skill/md-to-wechat/scripts/cdp_export.mjs` 会做两件事中的一种或两种：
-
-- 打开 md2wechat 网站，写入 Markdown，点击“复制富文本”
-- 打开微信公众号后台，粘贴正文，填写标题 / 作者 / 摘要 / 封面，标记原创并保存草稿
+- 打开 md2wechat 网站
+- 写入 Markdown
+- 点击“复制富文本”
+- 打开微信公众号后台
+- 粘贴正文
+- 填写标题 / 作者 / 摘要 / 封面
+- 标记原创
+- 保存草稿
 
 只复制富文本：
 
 ```bash
 node skill/md-to-wechat/scripts/cdp_export.mjs \
   --markdown-file test.md \
-  --app http://127.0.0.1:3000 \
+  --app https://wechat.reshub.vip \
   --cdp http://127.0.0.1:9222 \
   --action copy-rich
 ```
@@ -131,7 +112,7 @@ node skill/md-to-wechat/scripts/cdp_export.mjs \
 ```bash
 node skill/md-to-wechat/scripts/cdp_export.mjs \
   --markdown-file test.md \
-  --app http://127.0.0.1:3000/?theme=default \
+  --app "https://wechat.reshub.vip/?theme=default" \
   --cdp http://127.0.0.1:9222 \
   --action copy-rich \
   --wechat \
@@ -151,30 +132,84 @@ node skill/md-to-wechat/scripts/cdp_export.mjs \
 - `--no-submit`：不保存草稿
 - `--delay-scale` `--jitter-ms`：增加等待时间和随机抖动
 
-说明：
+默认行为：
 
 - 默认优先点击网站上的“复制富文本”按钮，而不是直接框选预览区
 - 默认开启原创声明
 - 默认保存草稿
 
-## Skill 用法
+### 3. 只做 CLI 转换
 
-仓库内置了一个 skill：
+如果你只需要把 Markdown 转成微信兼容 HTML，而不需要网站或公众号后台自动化，可以使用 CLI。
 
-```text
-skill/md-to-wechat
+先构建：
+
+```bash
+npm install
+npm run build --workspace @md2wechat/core
+npm run build --workspace @md2wechat/cli
 ```
 
-核心说明在：
+转换 Markdown：
 
-- [skill/md-to-wechat/SKILL.md](/Users/jun/Desktop/Code/skill/md2wechat/skill/md-to-wechat/SKILL.md)
+```bash
+node packages/cli/dist/cli.js article.md --theme minimal --out wechat.html
+```
 
-这个 skill 明确了：
+也支持 stdin：
 
-- 什么时候用 CLI
-- 什么时候走 CDP 自动化
-- 默认行为和关键参数
-- theme URL、主题实验室、公众号后台自动化的执行约束
+```bash
+echo '# 标题' | node packages/cli/dist/cli.js --theme default
+```
+
+## 项目结构
+
+```text
+.
+├── apps/
+│   └── web/                 # Next.js 网站
+├── packages/
+│   ├── core/                # Markdown -> WeChat HTML 核心渲染
+│   └── cli/                 # CLI
+├── skill/
+│   └── md-to-wechat/        # Codex skill，含 CDP 自动化脚本
+└── docs/
+    └── wechat-compatibility.md
+```
+
+## 本地开发
+
+只有在需要修改网站或调试本地行为时，才需要本地启动。
+
+安装依赖：
+
+```bash
+npm install
+```
+
+启动网站：
+
+```bash
+npm run dev
+```
+
+默认本地地址：
+
+```text
+http://127.0.0.1:3000
+```
+
+构建全部包：
+
+```bash
+npm run build
+```
+
+运行测试：
+
+```bash
+npm run test
+```
 
 ## 微信兼容性
 

@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import process from "node:process";
 
-const DEFAULT_APP_URL = "http://127.0.0.1:4173/#/";
+const DEFAULT_APP_URL = "https://wechat.reshub.vip";
 const DEFAULT_CDP_URL = "http://127.0.0.1:9222";
 const DEFAULT_DELAY_SCALE = 3;
 const DEFAULT_JITTER_MS = 800;
