@@ -43,6 +43,7 @@ type UploadStatus = {
   kind: "idle" | "uploading" | "success" | "error";
   message: string;
 };
+type ThemePickerTab = "builtin" | "local";
 
 const pickerPreviewMarkdown = `## 二级标题
 ### 三级标题
@@ -237,7 +238,8 @@ function SettingsIcon() {
 
 function ThemePickerModal({
   open,
-  themes,
+  builtinThemes,
+  localThemes,
   selectedTheme,
   modalPreviewMap,
   onClose,
@@ -245,13 +247,37 @@ function ThemePickerModal({
   onCreate
 }: {
   open: boolean;
-  themes: AppTheme[];
+  builtinThemes: AppTheme[];
+  localThemes: AppTheme[];
   selectedTheme: AppTheme;
   modalPreviewMap: Map<string, string>;
   onClose: () => void;
   onSelect: (theme: AppTheme) => void;
   onCreate: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<ThemePickerTab>("builtin");
+  const [copiedThemeName, setCopiedThemeName] = useState<string | null>(null);
+  const visibleThemes = activeTab === "builtin" ? builtinThemes : localThemes;
+
+  async function copyThemeName(themeName: string) {
+    await navigator.clipboard.writeText(themeName);
+    setCopiedThemeName(themeName);
+    window.setTimeout(() => {
+      setCopiedThemeName((current) => (current === themeName ? null : current));
+    }, 1600);
+  }
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const nextTab = localThemes.some((theme) => theme.name === selectedTheme.name)
+      ? "local"
+      : "builtin";
+    setActiveTab(nextTab);
+  }, [localThemes, open, selectedTheme.name]);
+
   if (!open) {
     return null;
   }
@@ -267,8 +293,19 @@ function ThemePickerModal({
       >
         <div className="theme-modal-header">
           <div className="theme-modal-tabs">
-            <button type="button" className="is-active">
+            <button
+              type="button"
+              className={activeTab === "builtin" ? "is-active" : undefined}
+              onClick={() => setActiveTab("builtin")}
+            >
               推荐
+            </button>
+            <button
+              type="button"
+              className={activeTab === "local" ? "is-active" : undefined}
+              onClick={() => setActiveTab("local")}
+            >
+              我的
             </button>
           </div>
           <button type="button" className="menu-close-button" onClick={onClose}>
@@ -277,16 +314,18 @@ function ThemePickerModal({
         </div>
 
         <div className="theme-picker-grid">
-          <button
-            type="button"
-            className="theme-picker-card theme-picker-new"
-            onClick={onCreate}
-          >
-            <div className="theme-picker-new-icon">+</div>
-            <div className="theme-picker-new-title">新建主题</div>
-            <p>进入主题实验室，可从零开始或基于推荐主题调整。</p>
-          </button>
-          {themes.map((theme) => {
+          {activeTab === "local" ? (
+            <button
+              type="button"
+              className="theme-picker-card theme-picker-new"
+              onClick={onCreate}
+            >
+              <div className="theme-picker-new-icon">+</div>
+              <div className="theme-picker-new-title">新建主题</div>
+              <p>进入主题实验室，可从零开始或基于推荐主题调整。</p>
+            </button>
+          ) : null}
+          {visibleThemes.map((theme) => {
             const active = theme.name === selectedTheme.name;
             return (
               <article
@@ -301,7 +340,20 @@ function ThemePickerModal({
                 </div>
                 <div className="theme-picker-meta">
                   <div>
-                    <strong>{theme.label}</strong>
+                    <div className="theme-picker-title-row">
+                      <strong>{theme.label}</strong>
+                      <div className="theme-picker-name-row">
+                        <span className="theme-picker-name">{theme.name}</span>
+                        <button
+                          type="button"
+                          className="theme-picker-copy-button"
+                          onClick={() => void copyThemeName(theme.name)}
+                          aria-label={`复制主题 ID ${theme.name}`}
+                        >
+                          {copiedThemeName === theme.name ? "已复制" : "复制"}
+                        </button>
+                      </div>
+                    </div>
                     <p>{theme.summary}</p>
                   </div>
                   <button
@@ -315,6 +367,12 @@ function ThemePickerModal({
               </article>
             );
           })}
+          {activeTab === "local" && localThemes.length === 0 ? (
+            <section className="theme-picker-empty">
+              <strong>还没有你的主题</strong>
+              <p>先新建一个，或者去主题实验室保存当前样式，之后这里会单独列出来。</p>
+            </section>
+          ) : null}
         </div>
       </section>
     </div>
@@ -1434,10 +1492,10 @@ export default function App() {
                   </a>
                 </div>
                 <div className="drawer-promo-qr">
-                  <div className="drawer-promo-qr-trigger">
+                  <button type="button" className="drawer-promo-qr-trigger" aria-label="预览微信二维码">
                     <img src="/wechat-qr.jpg" alt="微信二维码" />
                     <span>微信联系</span>
-                  </div>
+                  </button>
                   <div className="drawer-promo-qr-popover" aria-hidden="true">
                     <img src="/wechat-qr.jpg" alt="" />
                     <p>扫码添加微信</p>
@@ -1451,7 +1509,8 @@ export default function App() {
 
         <ThemePickerModal
           open={themeModalOpen}
-          themes={availableThemes}
+          builtinThemes={builtinThemes}
+          localThemes={localThemes}
           selectedTheme={selectedTheme}
           modalPreviewMap={modalPreviewMap}
           onClose={() => setThemeModalOpen(false)}
