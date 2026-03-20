@@ -17,14 +17,12 @@ description: Convert Markdown to WeChat-ready HTML and optionally automate the m
 
 | Script | Purpose |
 | --- | --- |
-| `scripts/cdp_export.mjs` | Drive the web app + WeChat backend via CDP and copy/paste rich text |
-| `scripts/run.mjs` | Thin wrapper around the CLI (`packages/cli`) |
+| `scripts/cdp_export.ts` | Drive the web app + WeChat backend via CDP, export HTML, and copy/paste rich text |
 
 ## Choose the path
 
-- Use `scripts/run.mjs` when the user only needs Markdown converted to WeChat-ready HTML.
-- Use `scripts/cdp_export.mjs` when the user wants browser automation, rich-text copy, theme selection through the web app, or direct posting into WeChat Official Account backend.
-- Prefer `scripts/cdp_export.mjs` for end-to-end verification because it exercises the real web app behavior.
+- Use `scripts/cdp_export.ts` for HTML export through the web app, browser automation, rich-text copy, theme selection through the web app, or direct posting into WeChat Official Account backend.
+- Prefer `scripts/cdp_export.ts` for end-to-end verification because it exercises the real web app behavior.
 
 ## Non-negotiables
 
@@ -34,7 +32,7 @@ description: Convert Markdown to WeChat-ready HTML and optionally automate the m
 
 ## Prereqs
 
-- Node.js available (`node`).
+- Node.js 24+ available (`node`); `scripts/cdp_export.ts` relies on native TypeScript execution.
 - Default web app: `https://wechat.reshub.vip`.
 - Do not start a local web server unless the user explicitly asks for local development or debugging.
 - Chrome/Edge with remote debugging enabled for `--cdp`, or allow `--launch-local` to start a local Chrome.
@@ -42,25 +40,28 @@ description: Convert Markdown to WeChat-ready HTML and optionally automate the m
 
 ## Workflow
 
-1. Determine whether the user wants HTML output only or full browser automation.
-2. If HTML only, run `scripts/run.mjs`.
-3. If browser automation is needed, run `scripts/cdp_export.mjs` with the minimal flags required.
-4. If the user mentions themes, pass `?theme=<name>` through `--app` or `--theme`.
-5. If the user mentions WeChat posting, add `--wechat` and pass metadata overrides when available.
-6. After execution, report what was actually completed: HTML generated, rich text copied, WeChat draft filled, cover uploaded, original marked, draft saved.
+1. Determine whether the user wants HTML export only, rich-text copy, or full WeChat draft automation.
+2. Run `scripts/cdp_export.ts` with the minimal flags required.
+3. If the user mentions themes, pass `?theme=<name>` through `--app` or `--theme`.
+4. If the user mentions WeChat posting, add `--wechat` and pass metadata overrides when available.
+5. After execution, report what was actually completed: HTML generated, rich text copied, WeChat draft filled, cover uploaded, original marked, draft saved.
 
 ## Quick start
 
-CLI conversion:
+HTML export through the web app:
 
 ```bash
-node {baseDir}/scripts/run.mjs article.md --theme minimal --out wechat.html
+node {baseDir}/scripts/cdp_export.ts \
+  --markdown-file "article.md" \
+  --app "https://wechat.reshub.vip/?theme=minimal" \
+  --cdp "http://127.0.0.1:9222" \
+  --action export-html
 ```
 
 CDP copy only:
 
 ```bash
-node {baseDir}/scripts/cdp_export.mjs \
+node {baseDir}/scripts/cdp_export.ts \
   --markdown-file "article.md" \
   --app "https://wechat.reshub.vip" \
   --cdp "http://127.0.0.1:9222" \
@@ -70,7 +71,7 @@ node {baseDir}/scripts/cdp_export.mjs \
 CDP + WeChat backend:
 
 ```bash
-node {baseDir}/scripts/cdp_export.mjs \
+node {baseDir}/scripts/cdp_export.ts \
   --markdown-file "article.md" \
   --app "https://wechat.reshub.vip" \
   --cdp "http://127.0.0.1:9222" \
@@ -81,7 +82,7 @@ node {baseDir}/scripts/cdp_export.mjs \
 Theme preselection:
 
 ```bash
-node {baseDir}/scripts/cdp_export.mjs \
+node {baseDir}/scripts/cdp_export.ts \
   --markdown-file "article.md" \
   --app "https://wechat.reshub.vip/?theme=minimal" \
   --cdp "http://127.0.0.1:9222" \
@@ -91,7 +92,7 @@ node {baseDir}/scripts/cdp_export.mjs \
 Full draft example:
 
 ```bash
-node {baseDir}/scripts/cdp_export.mjs \
+node {baseDir}/scripts/cdp_export.ts \
   --markdown-file "article.md" \
   --app "https://wechat.reshub.vip/?theme=default" \
   --cdp "http://127.0.0.1:9222" \

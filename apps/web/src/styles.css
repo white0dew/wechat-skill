@@ -220,6 +220,12 @@ button {
   flex-wrap: wrap;
 }
 
+.preview-mode-switch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--muted);
@@ -469,6 +475,60 @@ button {
   background: linear-gradient(180deg, rgba(251, 247, 240, 0.96), rgba(238, 243, 246, 0.92));
 }
 
+.preview-surface.is-mobile-preview {
+  overflow: hidden;
+}
+
+.preview-device-shell {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  justify-content: center;
+  overflow: auto;
+  padding: 2px;
+}
+
+.preview-device-shell.is-desktop {
+  display: block;
+  overflow: visible;
+  padding: 0;
+}
+
+.preview-device-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 34px;
+  background: linear-gradient(180deg, #141c27, #334155);
+  box-shadow:
+    0 22px 44px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.preview-device-frame.is-desktop {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.preview-device-chrome {
+  display: flex;
+  justify-content: center;
+}
+
+.preview-device-notch {
+  width: 118px;
+  height: 22px;
+  border-radius: 0 0 18px 18px;
+  background: rgba(7, 10, 16, 0.94);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
 .wechat-preview {
   min-height: 700px;
   height: calc(100vh - 140px);
@@ -476,6 +536,17 @@ button {
   padding: 18px 16px;
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(252, 249, 243, 0.98));
+}
+
+.wechat-preview.is-mobile {
+  min-height: 640px;
+  height: min(780px, calc(100vh - 240px));
+  padding: 20px 18px 24px;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
 }
 
 .lab-preview-stage .wechat-preview {
@@ -879,6 +950,16 @@ button {
     height: 72vh;
     min-height: 560px;
   }
+
+  .preview-device-frame {
+    padding: 10px;
+    border-radius: 28px;
+  }
+
+  .wechat-preview.is-mobile {
+    height: 70vh;
+    min-height: 540px;
+  }
 }
 
 @media (max-width: 920px) {
@@ -906,6 +987,12 @@ button {
     flex-direction: column;
   }
 
+  .section-title-side,
+  .preview-tools,
+  .preview-mode-switch {
+    width: 100%;
+  }
+
   .drawer-promo-card {
     grid-template-columns: 1fr;
   }
@@ -925,6 +1012,29 @@ button {
   .drawer-promo-qr:hover .drawer-promo-qr-popover,
   .drawer-promo-qr:focus-within .drawer-promo-qr-popover {
     transform: translateY(0) scale(1);
+  }
+
+  .preview-device-shell {
+    padding: 0;
+  }
+
+  .preview-device-frame {
+    gap: 10px;
+    padding: 8px;
+    border-radius: 24px;
+  }
+
+  .preview-device-notch {
+    width: 96px;
+    height: 18px;
+    border-radius: 0 0 14px 14px;
+  }
+
+  .wechat-preview.is-mobile {
+    min-height: 420px;
+    height: 68vh;
+    padding: 16px 14px 20px;
+    border-radius: 18px;
   }
 
   .lab-form-grid,

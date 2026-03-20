@@ -25,10 +25,28 @@ function inlineToText(nodes: InlineNode[]): string {
     .join("");
 }
 
+function normalizeTextValue(value: string): InlineNode[] {
+  const segments = value.split(/\r?\n/);
+
+  return segments.flatMap((segment, index) => {
+    const nodes: InlineNode[] = [];
+
+    if (segment) {
+      nodes.push({ type: "text", value: segment });
+    }
+
+    if (index < segments.length - 1) {
+      nodes.push({ type: "break" });
+    }
+
+    return nodes;
+  });
+}
+
 function normalizeInline(node: MarkdownNode): InlineNode[] {
   switch (node.type) {
     case "text":
-      return [{ type: "text", value: node.value ?? "" }];
+      return normalizeTextValue(node.value ?? "");
     case "strong":
       return [{ type: "strong", children: normalizeInlineChildren(node) }];
     case "emphasis":
@@ -57,6 +75,124 @@ function normalizeInline(node: MarkdownNode): InlineNode[] {
 
 function normalizeInlineChildren(node: MarkdownNode): InlineNode[] {
   return (node.children ?? []).flatMap((child) => normalizeInline(child));
+}
+
+function trimInlineBoundaryWhitespace(children: InlineNode[]): InlineNode[] {
+  const nextChildren = [...children];
+
+  while (nextChildren.length > 0) {
+    const firstNode = nextChildren[0];
+    if (!firstNode) {
+      break;
+    }
+
+    if (firstNode.type === "break") {
+      nextChildren.shift();
+      continue;
+    }
+
+    if (firstNode.type === "text") {
+      const value = firstNode.value.replace(/^\s+/, "");
+      if (value) {
+        nextChildren[0] = { ...firstNode, value };
+        break;
+      }
+      nextChildren.shift();
+      continue;
+    }
+
+    break;
+  }
+
+  while (nextChildren.length > 0) {
+    const lastIndex = nextChildren.length - 1;
+    const node = nextChildren[lastIndex];
+    if (!node) {
+      break;
+    }
+
+    if (node.type === "break") {
+      nextChildren.pop();
+      continue;
+    }
+
+    if (node.type === "text") {
+      const value = node.value.replace(/\s+$/, "");
+      if (value) {
+        nextChildren[lastIndex] = { ...node, value };
+        break;
+      }
+      nextChildren.pop();
+      continue;
+    }
+
+    break;
+  }
+
+  return nextChildren;
+}
+
+function createParagraphBlock(children: InlineNode[]): ParagraphBlock | null {
+  const trimmedChildren = trimInlineBoundaryWhitespace(children);
+  const text = inlineToText(trimmedChildren).trim();
+  if (!text) {
+    return null;
+  }
+
+  return {
+    type: "paragraph",
+    children: trimmedChildren,
+    text
+  };
+}
+
+function createImageBlock(node: MarkdownNode): Block {
+  return {
+    type: "image",
+    src: node.url ?? "",
+    alt: node.alt ?? undefined,
+    title: node.title ?? undefined
+  };
+}
+
+function normalizeParagraph(node: MarkdownNode): Block[] {
+  const children = node.children ?? [];
+
+  if (children.length === 1 && children[0]?.type === "image") {
+    return [createImageBlock(children[0])];
+  }
+
+  if (!children.some((child) => child.type === "image")) {
+    const paragraph = createParagraphBlock(normalizeInlineChildren(node));
+    return paragraph ? [paragraph] : [];
+  }
+
+  const blocks: Block[] = [];
+  let segment: MarkdownNode[] = [];
+
+  const flushParagraphSegment = () => {
+    const paragraph = createParagraphBlock(
+      segment.flatMap((child) => normalizeInline(child))
+    );
+    if (paragraph) {
+      blocks.push(paragraph);
+    }
+    segment = [];
+  };
+
+  for (const child of children) {
+    if (child.type === "image") {
+      flushParagraphSegment();
+      blocks.push(createImageBlock(child));
+      continue;
+    }
+
+    segment.push(child);
+  }
+
+  flushParagraphSegment();
+
+  return blocks;
 }
 
 function ensureParagraph(children: Block[]): ParagraphBlock {
@@ -118,20 +254,8 @@ function normalizeBlock(node: MarkdownNode): Block[] {
         }
       ];
     }
-    case "paragraph": {
-      if ((node.children ?? []).length === 1 && node.children?.[0]?.type === "image") {
-        return normalizeBlock(node.children[0]);
-      }
-
-      const children = normalizeInlineChildren(node);
-      return [
-        {
-          type: "paragraph",
-          children,
-          text: inlineToText(children).trim()
-        }
-      ];
-    }
+    case "paragraph":
+      return normalizeParagraph(node);
     case "blockquote":
       return [
         {
@@ -157,14 +281,7 @@ function normalizeBlock(node: MarkdownNode): Block[] {
         }
       ];
     case "image":
-      return [
-        {
-          type: "image",
-          src: node.url ?? "",
-          alt: node.alt ?? undefined,
-          title: node.title ?? undefined
-        }
-      ];
+      return [createImageBlock(node)];
     case "thematicBreak":
       return [{ type: "thematic_break" }];
     case "html":

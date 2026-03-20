@@ -56,4 +56,44 @@ describe("renderMarkdownToWechat", () => {
       'href="https://mp.weixin.qq.com/s?__biz=MzA3MDAxMjA0Mw==&amp;mid=2650000000&amp;idx=1&amp;sn=abcdef"'
     );
   });
+
+  it("renders single newlines inside a paragraph as hard breaks", () => {
+    const result = renderMarkdownToWechat("1\n2\n3\n4");
+
+    expect(result.blocks).toMatchObject([
+      {
+        type: "paragraph",
+        text: "1\n2\n3\n4",
+        children: [
+          { type: "text", value: "1" },
+          { type: "break" },
+          { type: "text", value: "2" },
+          { type: "break" },
+          { type: "text", value: "3" },
+          { type: "break" },
+          { type: "text", value: "4" }
+        ]
+      }
+    ]);
+    expect(result.html).toContain("1<br />2<br />3<br />4");
+  });
+
+  it("keeps images as standalone blocks even without blank lines around them", () => {
+    const result = renderMarkdownToWechat(
+      "前文\n![设计草图](https://example.com/image.png)\n后文"
+    );
+
+    expect(result.blocks).toMatchObject([
+      { type: "paragraph", text: "前文" },
+      {
+        type: "image",
+        src: "https://example.com/image.png",
+        alt: "设计草图"
+      },
+      { type: "paragraph", text: "后文" }
+    ]);
+    expect(result.html).toContain('<img src="https://example.com/image.png"');
+    expect(result.html).toContain(">前文</p>");
+    expect(result.html).toContain(">后文</p>");
+  });
 });

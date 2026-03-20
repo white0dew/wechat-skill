@@ -26,4 +26,4 @@
 ## Cover upload missing
 
 - Check that the cover triggers are present in the current WeChat UI.
-- Update selectors in `scripts/cdp_export.mjs` if the UI changed.
+- Update selectors in `scripts/cdp_export.ts` if the UI changed.

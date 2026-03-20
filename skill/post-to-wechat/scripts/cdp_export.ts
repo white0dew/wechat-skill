@@ -10,6 +10,25 @@ const DEFAULT_APP_URL = "https://wechat.reshub.vip";
 const DEFAULT_CDP_URL = "http://127.0.0.1:9222";
 const DEFAULT_DELAY_SCALE = 3;
 const DEFAULT_JITTER_MS = 800;
+
+type Frontmatter = Record<string, string>;
+
+type LocalChromeOptions = {
+  profileDir?: string;
+  chromePath?: string;
+};
+
+type CDPRequestPending = {
+  resolve: (value: any) => void;
+  reject: (reason?: unknown) => void;
+};
+
+type CDPTarget = {
+  id?: string;
+  type?: string;
+  url?: string;
+  webSocketDebuggerUrl?: string;
+};
 const CHROME_CANDIDATES = {
   darwin: [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -40,7 +59,42 @@ const CHROME_CANDIDATES = {
   ]
 };
 
-function fileExists(filePath) {
+function printHelp() {
+  process.stdout.write(
+    [
+      "Usage:",
+      "  node scripts/cdp_export.ts --markdown-file article.md [--theme minimal] [--action copy-rich]",
+      "  echo '# Title' | node scripts/cdp_export.ts --markdown-stdin --action copy-rich",
+      "  node scripts/cdp_export.ts --source https://example.com/article --selector article",
+      "",
+      "Inputs:",
+      "  --source <url>",
+      "  --markdown <text>",
+      "  --markdown-file <path>",
+      "  --markdown-stdin",
+      "",
+      "Actions:",
+      "  copy-rich   default",
+      "  export-html",
+      "  write-only",
+      "",
+      "Common options:",
+      "  --app <url>",
+      "  --theme <name>",
+      "  --cdp <url>",
+      "  --launch-local",
+      "  --wechat",
+      "  --title <text>",
+      "  --author <text>",
+      "  --summary <text>",
+      "  --cover <path>",
+      "  --no-submit",
+      "  --no-original"
+    ].join("\n")
+  );
+}
+
+function fileExists(filePath: string) {
   try {
     return fs.existsSync(filePath);
   } catch {
@@ -52,7 +106,7 @@ function isWsl() {
   return Boolean(process.env.WSL_DISTRO_NAME);
 }
 
-function findChromeExecutable(chromePathOverride) {
+function findChromeExecutable(chromePathOverride?: string) {
   if (chromePathOverride && fileExists(chromePathOverride)) {
     return chromePathOverride;
   }
@@ -78,7 +132,7 @@ function findChromeExecutable(chromePathOverride) {
   return candidates.find((candidate) => fileExists(candidate));
 }
 
-function resolveProfileDir(profileDirOverride) {
+function resolveProfileDir(profileDirOverride?: string) {
   if (profileDirOverride) {
     return profileDirOverride;
   }
@@ -92,7 +146,7 @@ function resolveProfileDir(profileDirOverride) {
   return path.join(os.tmpdir(), "md2wechat-cdp-profile");
 }
 
-function applyThemeParam(appUrl, theme) {
+function applyThemeParam(appUrl: string, theme: string) {
   if (!theme) {
     return appUrl;
   }
@@ -101,9 +155,9 @@ function applyThemeParam(appUrl, theme) {
   return url.toString();
 }
 
-async function readStdin() {
-  return await new Promise((resolve, reject) => {
-    const chunks = [];
+async function readStdin(): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const chunks: Buffer[] = [];
     process.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     process.stdin.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
     process.stdin.on("error", reject);
@@ -112,6 +166,7 @@ async function readStdin() {
 
 function parseArgs(argv) {
   const args = {
+    help: false,
     source: "",
     markdown: "",
     markdownFile: "",
@@ -120,7 +175,7 @@ function parseArgs(argv) {
     app: DEFAULT_APP_URL,
     cdp: DEFAULT_CDP_URL,
     theme: "",
-    action: "export-html",
+    action: "copy-rich",
     launchLocal: false,
     profileDir: "",
     chromePath: "",
@@ -143,6 +198,11 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
+
+    if (token === "--help" || token === "-h") {
+      args.help = true;
+      continue;
+    }
 
     if (token === "--source") {
       args.source = argv[index + 1] ?? "";
@@ -306,6 +366,10 @@ function parseArgs(argv) {
     throw new Error(`Unknown argument: ${token}`);
   }
 
+  if (args.help) {
+    return args;
+  }
+
   if (!args.source && !args.markdown && !args.markdownFile && !args.markdownStdin) {
     throw new Error(
       "Missing input: provide --source, --markdown, --markdown-file, or --markdown-stdin."
@@ -327,12 +391,12 @@ function parseArgs(argv) {
   return args;
 }
 
-async function fetchJson(url, init) {
+async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status} ${response.statusText} ${url}`);
   }
-  return response.json();
+  return (await response.json()) as T;
 }
 
 function delay(ms) {
@@ -347,17 +411,17 @@ function createUiDelay(delayScale, jitterMs) {
   };
 }
 
-function stripWrappingQuotes(value) {
+function stripWrappingQuotes(value: string) {
   if (!value) return value;
   return value.replace(/^["']|["']$/g, "");
 }
 
-function parseFrontmatter(markdown) {
+function parseFrontmatter(markdown: string): { frontmatter: Frontmatter; body: string } {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return { frontmatter: {}, body: markdown };
   const raw = match[1] ?? "";
   const body = markdown.slice(match[0].length);
-  const frontmatter = {};
+  const frontmatter: Frontmatter = {};
   for (const line of raw.split(/\r?\n/)) {
     const idx = line.indexOf(":");
     if (idx <= 0) continue;
@@ -389,7 +453,7 @@ function extractSummaryFromMarkdown(body, maxLen = 120) {
   return summary.length > maxLen ? summary.slice(0, maxLen - 1) + "…" : summary;
 }
 
-function parseMarkdownMeta(markdown) {
+function parseMarkdownMeta(markdown: string) {
   const { frontmatter, body } = parseFrontmatter(markdown);
   const title =
     stripWrappingQuotes(frontmatter.title || "") || extractTitleFromMarkdown(body);
@@ -449,12 +513,12 @@ async function waitForPreviewContains(client, sentinel, sleepUi, timeoutMs = 100
   return false;
 }
 
-async function listTargets(cdpUrl) {
-  const targets = await fetchJson(`${cdpUrl}/json/list`);
+async function listTargets(cdpUrl: string): Promise<CDPTarget[]> {
+  const targets = await fetchJson<CDPTarget[]>(`${cdpUrl}/json/list`);
   return Array.isArray(targets) ? targets : [];
 }
 
-async function connectToTarget(wsUrl) {
+async function connectToTarget(wsUrl: string) {
   const client = new CDPClient(wsUrl);
   await client.connect();
   await client.send("Page.enable");
@@ -464,7 +528,7 @@ async function connectToTarget(wsUrl) {
   return client;
 }
 
-async function ensureLocalChrome(cdpUrl, options = {}) {
+async function ensureLocalChrome(cdpUrl: string, options: LocalChromeOptions = {}) {
   const port = new URL(cdpUrl).port || "9222";
   const chromePath = findChromeExecutable(options.chromePath);
   if (!chromePath) {
@@ -503,16 +567,22 @@ async function ensureLocalChrome(cdpUrl, options = {}) {
 }
 
 class CDPClient {
-  constructor(wsUrl) {
+  ws: WebSocket;
+  id: number;
+  pending: Map<number, CDPRequestPending>;
+
+  constructor(wsUrl: string) {
     this.ws = new WebSocket(wsUrl);
     this.id = 0;
-    this.pending = new Map();
+    this.pending = new Map<number, CDPRequestPending>();
   }
 
-  async connect() {
-    await new Promise((resolve, reject) => {
+  async connect(): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
       this.ws.addEventListener("open", () => resolve());
-      this.ws.addEventListener("error", (event) => reject(event.error ?? new Error("WebSocket error")));
+      this.ws.addEventListener("error", (event) =>
+        reject((event as ErrorEvent).error ?? new Error("WebSocket error"))
+      );
     });
 
     this.ws.addEventListener("message", (event) => {
@@ -536,7 +606,7 @@ class CDPClient {
     });
   }
 
-  send(method, params = {}) {
+  send(method: string, params: Record<string, unknown> = {}) {
     const id = ++this.id;
     const message = { id, method, params };
     this.ws.send(JSON.stringify(message));
@@ -550,10 +620,13 @@ class CDPClient {
   }
 }
 
-async function openTarget(cdpUrl, targetUrl) {
-  const target = await fetchJson(`${cdpUrl}/json/new?${encodeURIComponent(targetUrl)}`, {
+async function openTarget(cdpUrl: string, targetUrl: string) {
+  const target = await fetchJson<CDPTarget>(`${cdpUrl}/json/new?${encodeURIComponent(targetUrl)}`, {
     method: "PUT"
   });
+  if (!target.webSocketDebuggerUrl) {
+    throw new Error("CDP target did not include webSocketDebuggerUrl.");
+  }
   return await connectToTarget(target.webSocketDebuggerUrl);
 }
 
@@ -608,7 +681,7 @@ function sendShortcut(kind, client) {
   }
 
   if (client) {
-    const modifiers = process.platform === "darwin" ? 4 : 2;
+    const modifiers = 2;
     const key = kind === "copy" ? "c" : "v";
     const code = kind === "copy" ? "KeyC" : "KeyV";
     const keyCode = kind === "copy" ? 67 : 86;
@@ -1066,6 +1139,10 @@ async function markOriginalDeclaration(client, sleepUi) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    printHelp();
+    return;
+  }
   const appUrl = applyThemeParam(args.app, args.theme);
   const copyStrategy = args.copyStrategy?.trim() || "button";
   const sleepUi = createUiDelay(args.delayScale, args.jitterMs);

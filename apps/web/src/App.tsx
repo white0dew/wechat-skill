@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type ClipboardEvent,
   type DragEvent,
   useDeferredValue,
@@ -29,16 +30,20 @@ import {
 } from "./themeDrafts";
 
 type Route = "editor" | "theme-lab";
+type PreviewMode = "desktop" | "mobile";
+const MOBILE_PREVIEW_WIDTH = 430;
 
 type EditorSettings = {
   syncScroll: boolean;
   previewFontFamily: string;
   previewFontSize: number;
+  previewMode: PreviewMode;
 };
 
 type AppTheme = ReturnType<typeof listThemes>[number];
 type FontOption = { label: string; value: string };
 type FontSizeOption = { label: string; value: number };
+type PreviewModeOption = { label: string; value: PreviewMode };
 type UploadStatus = {
   kind: "idle" | "uploading" | "success" | "error";
   message: string;
@@ -70,6 +75,10 @@ const fontSizeOptions: FontSizeOption[] = [
   { label: "15", value: 15 },
   { label: "16", value: 16 },
   { label: "18", value: 18 }
+];
+const previewModeOptions: PreviewModeOption[] = [
+  { label: "桌面", value: "desktop" },
+  { label: "手机", value: "mobile" }
 ];
 
 function getRouteFromHash(): Route {
@@ -620,7 +629,8 @@ export default function App() {
   const [settings, setSettings] = useState<EditorSettings>({
     syncScroll: true,
     previewFontFamily: "theme",
-    previewFontSize: 16
+    previewFontSize: 16,
+    previewMode: "mobile"
   });
   const [draft, setDraft] = useState<ThemeDraft>(createEmptyDraft);
   const draftOriginIdRef = useRef<string | null>(null);
@@ -646,6 +656,13 @@ export default function App() {
   const result = renderMarkdownToWechat(deferredMarkdown, {
     theme: previewTheme
   });
+  const previewDeviceFrameStyle: CSSProperties | undefined =
+    settings.previewMode === "mobile"
+      ? {
+          width: `${MOBILE_PREVIEW_WIDTH}px`,
+          maxWidth: "100%"
+        }
+      : undefined;
   const modalPreviewMap = useMemo(
     () =>
       new Map(
@@ -1216,6 +1233,28 @@ export default function App() {
                 <main className="studio-card editor-preview-panel">
                   <SectionTitle title="预览区">
                     <div className="preview-tools">
+                      <div className="preview-mode-switch" role="group" aria-label="预览模式">
+                        {previewModeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={
+                              settings.previewMode === option.value
+                                ? "mini-button is-active"
+                                : "mini-button"
+                            }
+                            aria-pressed={settings.previewMode === option.value}
+                            onClick={() =>
+                              setSettings((current) => ({
+                                ...current,
+                                previewMode: option.value
+                              }))
+                            }
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
                       <button
                         type="button"
                         className="action-button"
@@ -1235,14 +1274,46 @@ export default function App() {
                     </div>
                   </SectionTitle>
 
-                  <div className="preview-surface polished">
+                  <div
+                    className={
+                      settings.previewMode === "mobile"
+                        ? "preview-surface polished is-mobile-preview"
+                        : "preview-surface polished"
+                    }
+                  >
                     <div
-                      ref={previewRef}
-                      id="wechat-preview"
-                      data-role="preview-surface"
-                      className="wechat-preview"
-                      dangerouslySetInnerHTML={{ __html: result.html }}
-                    />
+                      className={
+                        settings.previewMode === "mobile"
+                          ? "preview-device-shell"
+                          : "preview-device-shell is-desktop"
+                      }
+                    >
+                      <div
+                        className={
+                          settings.previewMode === "mobile"
+                            ? "preview-device-frame"
+                            : "preview-device-frame is-desktop"
+                        }
+                        style={previewDeviceFrameStyle}
+                      >
+                        {settings.previewMode === "mobile" ? (
+                          <div className="preview-device-chrome" aria-hidden="true">
+                            <span className="preview-device-notch" />
+                          </div>
+                        ) : null}
+                        <div
+                          ref={previewRef}
+                          id="wechat-preview"
+                          data-role="preview-surface"
+                          className={
+                            settings.previewMode === "mobile"
+                              ? "wechat-preview is-mobile"
+                              : "wechat-preview"
+                          }
+                          dangerouslySetInnerHTML={{ __html: result.html }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </main>
               </div>
@@ -1304,6 +1375,31 @@ export default function App() {
                   <span>更换</span>
                 </span>
               </button>
+            </section>
+
+            <section className="drawer-section">
+              <SectionTitle title="预览设备" />
+              <div className="option-grid">
+                {previewModeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={
+                      settings.previewMode === option.value
+                        ? "option-chip is-active"
+                        : "option-chip"
+                    }
+                    onClick={() =>
+                      setSettings((current) => ({
+                        ...current,
+                        previewMode: option.value
+                      }))
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </section>
 
             <section className="drawer-section">

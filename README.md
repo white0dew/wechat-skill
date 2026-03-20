@@ -16,18 +16,11 @@
 skill/post-to-wechat
 ```
 
-安装到 Codex 的常见方式：
+安装到 Codex 的推荐方式：
 
 ```bash
 mkdir -p ~/.codex/skills
 ln -s "$(pwd)/skill/post-to-wechat" ~/.codex/skills/post-to-wechat
-```
-
-如果不想用软链接，也可以直接复制：
-
-```bash
-mkdir -p ~/.codex/skills
-cp -R skill/post-to-wechat ~/.codex/skills/post-to-wechat
 ```
 
 安装后重启 Codex。
@@ -86,7 +79,7 @@ https://wechat.reshub.vip/?theme=minimal
 
 ### 2. 用 CDP 自动完成网站到公众号后台
 
-`skill/post-to-wechat/scripts/cdp_export.mjs` 可以：
+`skill/post-to-wechat/scripts/cdp_export.ts` 可以：
 
 - 打开 md2wechat 网站
 - 写入 Markdown
@@ -100,7 +93,7 @@ https://wechat.reshub.vip/?theme=minimal
 只复制富文本：
 
 ```bash
-node skill/post-to-wechat/scripts/cdp_export.mjs \
+node skill/post-to-wechat/scripts/cdp_export.ts \
   --markdown-file test.md \
   --app https://wechat.reshub.vip \
   --cdp http://127.0.0.1:9222 \
@@ -110,7 +103,7 @@ node skill/post-to-wechat/scripts/cdp_export.mjs \
 复制并进入公众号后台保存草稿：
 
 ```bash
-node skill/post-to-wechat/scripts/cdp_export.mjs \
+node skill/post-to-wechat/scripts/cdp_export.ts \
   --markdown-file test.md \
   --app "https://wechat.reshub.vip/?theme=default" \
   --cdp http://127.0.0.1:9222 \
@@ -137,30 +130,6 @@ node skill/post-to-wechat/scripts/cdp_export.mjs \
 - 默认优先点击网站上的“复制富文本”按钮，而不是直接框选预览区
 - 默认开启原创声明
 - 默认保存草稿
-
-### 3. 只做 CLI 转换
-
-如果你只需要把 Markdown 转成微信兼容 HTML，而不需要网站或公众号后台自动化，可以使用 CLI。
-
-先构建：
-
-```bash
-npm install
-npm run build --workspace @md2wechat/core
-npm run build --workspace @md2wechat/cli
-```
-
-转换 Markdown：
-
-```bash
-node packages/cli/dist/cli.js article.md --theme minimal --out wechat.html
-```
-
-也支持 stdin：
-
-```bash
-echo '# 标题' | node packages/cli/dist/cli.js --theme default
-```
 
 ## 项目结构
 
