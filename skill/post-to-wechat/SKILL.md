@@ -1,9 +1,9 @@
 ---
-name: md-to-wechat
+name: post-to-wechat
 description: Convert Markdown to WeChat-ready HTML and optionally automate the md2wechat web app plus WeChat Official Account backend via Chrome CDP. Use when the user asks to convert .md to WeChat HTML, copy rich text, select themes (including URL ?theme=), or auto-fill/save a WeChat draft.
 ---
 
-# md-to-wechat
+# post-to-wechat
 
 ## Language
 

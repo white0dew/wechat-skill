@@ -4,7 +4,7 @@
 
 如果你是给 AI / agent 用，这个仓库最重要的不是本地开发，而是：
 
-1. 先安装 `skill/md-to-wechat`
+1. 先安装 `skill/post-to-wechat`
 2. 默认直接访问线上站点 `https://wechat.reshub.vip`
 3. 不要默认本地启动 web 服务器，除非用户明确要求本地开发或调试
 
@@ -13,28 +13,28 @@
 仓库内置 skill：
 
 ```text
-skill/md-to-wechat
+skill/post-to-wechat
 ```
 
 安装到 Codex 的常见方式：
 
 ```bash
 mkdir -p ~/.codex/skills
-ln -s "$(pwd)/skill/md-to-wechat" ~/.codex/skills/md-to-wechat
+ln -s "$(pwd)/skill/post-to-wechat" ~/.codex/skills/post-to-wechat
 ```
 
 如果不想用软链接，也可以直接复制：
 
 ```bash
 mkdir -p ~/.codex/skills
-cp -R skill/md-to-wechat ~/.codex/skills/md-to-wechat
+cp -R skill/post-to-wechat ~/.codex/skills/post-to-wechat
 ```
 
 安装后重启 Codex。
 
 Skill 入口说明见：
 
-- [skill/md-to-wechat/SKILL.md](/Users/jun/Desktop/Code/skill/md2wechat/skill/md-to-wechat/SKILL.md)
+- [skill/post-to-wechat/SKILL.md](/Users/jun/Desktop/Code/skill/md2wechat/skill/post-to-wechat/SKILL.md)
 
 这个 skill 明确了：
 
@@ -86,7 +86,7 @@ https://wechat.reshub.vip/?theme=minimal
 
 ### 2. 用 CDP 自动完成网站到公众号后台
 
-`skill/md-to-wechat/scripts/cdp_export.mjs` 可以：
+`skill/post-to-wechat/scripts/cdp_export.mjs` 可以：
 
 - 打开 md2wechat 网站
 - 写入 Markdown
@@ -100,7 +100,7 @@ https://wechat.reshub.vip/?theme=minimal
 只复制富文本：
 
 ```bash
-node skill/md-to-wechat/scripts/cdp_export.mjs \
+node skill/post-to-wechat/scripts/cdp_export.mjs \
   --markdown-file test.md \
   --app https://wechat.reshub.vip \
   --cdp http://127.0.0.1:9222 \
@@ -110,7 +110,7 @@ node skill/md-to-wechat/scripts/cdp_export.mjs \
 复制并进入公众号后台保存草稿：
 
 ```bash
-node skill/md-to-wechat/scripts/cdp_export.mjs \
+node skill/post-to-wechat/scripts/cdp_export.mjs \
   --markdown-file test.md \
   --app "https://wechat.reshub.vip/?theme=default" \
   --cdp http://127.0.0.1:9222 \
@@ -172,7 +172,7 @@ echo '# 标题' | node packages/cli/dist/cli.js --theme default
 │   ├── core/                # Markdown -> WeChat HTML 核心渲染
 │   └── cli/                 # CLI
 ├── skill/
-│   └── md-to-wechat/        # Codex skill，含 CDP 自动化脚本
+│   └── post-to-wechat/      # Codex skill，含 CDP 自动化脚本
 └── docs/
     └── wechat-compatibility.md
 ```
