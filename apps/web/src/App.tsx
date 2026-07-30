@@ -610,7 +610,9 @@ export default function App() {
   const [themeDrafts, setThemeDrafts] = useState<ThemeDraft[]>(() =>
     typeof window === "undefined" ? [] : loadThemeDrafts()
   );
-  const [themeName, setThemeName] = useState(builtinThemes[0]?.name ?? "default");
+  const [themeName, setThemeName] = useState(
+    builtinThemes[0]?.name ?? "moyu-green"
+  );
   const [markdown, setMarkdown] = useState(examples[0].markdown);
   const [copied, setCopied] = useState(false);
   const [copiedTs, setCopiedTs] = useState(false);
@@ -701,7 +703,7 @@ export default function App() {
 
   useEffect(() => {
     if (!availableThemes.some((theme) => theme.name === themeName)) {
-      setThemeName(builtinThemes[0]?.name ?? "default");
+      setThemeName(builtinThemes[0]?.name ?? "moyu-green");
     }
   }, [availableThemes, builtinThemes, themeName]);
 

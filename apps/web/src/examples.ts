@@ -8,7 +8,7 @@ export const examples: Array<{
     label: "产品说明",
     markdown: `# 用 Markdown 写公众号，为什么这次要先做 Core
 
-如果只是一次性脚本，第一版当然很快。但只要你想切主题、做实时预览、接 CLI，结构就必须先稳定下来。
+如果只是一次性脚本，第一版当然很快。但只要你想切主题、做实时预览、接发布流程，结构就必须先稳定下来。
 
 ## MVP 目标
 
@@ -16,7 +16,7 @@ export const examples: Array<{
 - 两套主题
 - 一个统一渲染内核
 
-> Web Demo、CLI 和后续的发布适配层，应该消费同一份 block 结构。
+> Web Demo 和后续的发布适配层，应该消费同一份 block 结构。
 
 ### 这次支持什么
 
@@ -48,7 +48,7 @@ export function renderMarkdownToWechat(markdown: string) {
 2. 已验证的 Markdown 文章：6 篇
 3. 需要在第二阶段处理的能力：图片上传、草稿发布
 
-> 同一篇内容如果在预览站、CLI 和发布端输出不一致，后面的所有自动化都没有意义。
+> 同一篇内容如果在预览站和发布端输出不一致，后面的所有自动化都没有意义。
 
 ### 风险提示
 
@@ -75,7 +75,7 @@ export function renderMarkdownToWechat(markdown: string) {
 当你要同时满足下面三件事时，就不能再把逻辑散落在页面里：
 
 1. 支持多主题切换
-2. 需要 CLI 或 Skill 批量调用
+2. 需要 Skill 批量调用
 3. 后续还想接草稿发布能力
 
 > 最危险的方案不是“做得慢”，而是“先做快版本，后面再推倒重来”。

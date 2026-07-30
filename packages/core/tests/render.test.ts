@@ -1,7 +1,20 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { renderMarkdownToWechat } from "../src";
+import {
+  listThemes,
+  renderMarkdownToWechat,
+  resolveTheme
+} from "../src";
+
+const themeIds = [
+  "moyu-green",
+  "red-white",
+  "graphite-minimal",
+  "zen-whitespace",
+  "moyu-ticket",
+  "olive-journal"
+] as const;
 
 const exampleMarkdown = readFileSync(
   resolve(import.meta.dirname, "../examples/article.md"),
@@ -11,7 +24,7 @@ const exampleMarkdown = readFileSync(
 describe("renderMarkdownToWechat", () => {
   it("renders core markdown features into wechat-safe html", () => {
     const result = renderMarkdownToWechat(exampleMarkdown, {
-      theme: "default"
+      theme: "moyu-green"
     });
 
     expect(result.meta.title).toBe("用 Markdown 写公众号，为什么还要做 Core");
@@ -22,18 +35,61 @@ describe("renderMarkdownToWechat", () => {
     expect(result.blocks.some((block) => block.type === "list")).toBe(true);
   });
 
+  it("exposes only the registered gzh-design themes in index order", () => {
+    expect(listThemes().map((theme) => theme.name)).toEqual(themeIds);
+  });
+
+  it("defaults unknown and missing theme ids to moyu-green", () => {
+    expect(resolveTheme().name).toBe("moyu-green");
+    expect(resolveTheme("unknown-theme").name).toBe("moyu-green");
+  });
+
+  it.each(themeIds)("resolves %s to itself", (themeId) => {
+    expect(resolveTheme(themeId).name).toBe(themeId);
+  });
+
   it("switches theme without changing block structure", () => {
-    const defaultResult = renderMarkdownToWechat(exampleMarkdown, {
-      theme: "default"
+    const greenResult = renderMarkdownToWechat(exampleMarkdown, {
+      theme: "moyu-green"
     });
-    const minimalResult = renderMarkdownToWechat(exampleMarkdown, {
-      theme: "minimal"
+    const graphiteResult = renderMarkdownToWechat(exampleMarkdown, {
+      theme: "graphite-minimal"
     });
 
-    expect(defaultResult.blocks).toEqual(minimalResult.blocks);
-    expect(defaultResult.html).not.toEqual(minimalResult.html);
-    expect(minimalResult.html).toContain("<section style=");
-    expect(minimalResult.html).not.toContain("data-wechat-theme=");
+    expect(greenResult.blocks).toEqual(graphiteResult.blocks);
+    expect(greenResult.html).not.toEqual(graphiteResult.html);
+    expect(graphiteResult.html).toContain("<section style=");
+    expect(graphiteResult.html).not.toContain("data-wechat-theme=");
+  });
+
+  it("inlines gzh-design styles across rendered markdown elements", () => {
+    const markdown = `# 标题
+
+> 引用
+
+**重点**、*强调*、~~删除~~、\`inline\` 和 [链接](https://example.com)
+
+- 列表
+
+\`\`\`ts
+const value = true;
+\`\`\`
+
+![配图](https://example.com/image.png)
+
+---`;
+    const result = renderMarkdownToWechat(markdown, { theme: "moyu-green" });
+
+    expect(result.html).toContain("background-color:#FFFFFF");
+    expect(result.html).toContain("border-bottom:3px solid #059669");
+    expect(result.html).toContain("border-left:4px solid #059669");
+    expect(result.html).toContain("background-color:#111827");
+    expect(result.html).toContain("background-color:#F3F4F6;color:#1F2937");
+    expect(result.html).toContain("color:#059669;text-decoration:none");
+    expect(result.html).toContain("border:1px solid #BBF7D0");
+    expect(result.html).toContain("<strong style=\"color:#059669");
+    expect(result.html).toContain("<ul style=");
+    expect(result.html).toContain("<hr style=");
   });
 
   it("drops non-article mp.weixin.qq.com links", () => {

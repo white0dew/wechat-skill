@@ -8,7 +8,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @md2wechat/core && npm run build --workspace @md2wechat/cli && npm run build --workspace @md2wechat/web",
+    "build": "npm run build --workspace @md2wechat/core && npm run build --workspace @md2wechat/web",
     "test": "npm run test --workspace @md2wechat/core",
     "dev": "npm run dev --workspace @md2wechat/web"
   },

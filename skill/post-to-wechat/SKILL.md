@@ -1,95 +1,37 @@
 ---
 name: post-to-wechat
-description: Convert Markdown to WeChat-ready HTML and optionally automate the md2wechat web app plus WeChat Official Account backend via Chrome CDP. Use when the user asks to convert .md to WeChat HTML, copy rich text, select themes (including URL ?theme=), or auto-fill/save a WeChat draft.
+description: Convert Markdown to WeChat-ready HTML and save WeChat Official Account drafts. Route standard articles through the md2wechat web app and Chrome CDP, elaborate visual layouts through the bundled gzh-design skill, non-original API drafts through publish_draft.mjs, and original declarations through CDP.
 ---
 
 # post-to-wechat
 
-## Language
+Respond in the user's language. Set `{baseDir}` to the directory containing this file.
 
-- Respond in the user's language.
+## Route the request
 
-## Resolve Base Directory
+Choose exactly one content-production route, then use the appropriate draft transport:
 
-- Set `{baseDir}` to the directory containing this `SKILL.md`.
+1. **Standard layout and normal publishing:** use `scripts/cdp_export.ts`. This is the default for Markdown conversion, theme selection, rich-text copy, metadata entry, cover upload, and saving a draft through the real WeChat backend.
+2. **Elaborate visual layout:** read and follow `{baseDir}/../gzh-design/SKILL.md`. Use its themes, components, normalization, and validation to produce a clean HTML fragment. Do not replace its component rules with the standard md2wechat themes.
+3. **Non-original API draft:** after a clean HTML fragment exists, use `scripts/publish_draft.mjs`. This path creates a draft only. It does not preview, mass-send, or declare originality.
+4. **Original declaration:** always use the CDP/WeChat backend path. The API adapter is explicitly non-original and must not be used as a substitute for the declaration UI.
+
+An elaborate layout may be transported by the API only when the article is non-original. If it must be declared original, keep the gzh-designed fragment as the content artifact and complete the declaration through the CDP backend workflow.
 
 ## Scripts
 
 | Script | Purpose |
 | --- | --- |
-| `scripts/cdp_export.ts` | Drive the web app + WeChat backend via CDP, export HTML, and copy/paste rich text |
+| `scripts/cdp_export.ts` | Drive the md2wechat web app and WeChat backend through Chrome CDP |
+| `scripts/publish_draft.mjs` | Wrap an HTML fragment and create a non-original API draft through vendored runtime |
 
-## Choose the path
-
-- Use `scripts/cdp_export.ts` for HTML export through the web app, browser automation, rich-text copy, theme selection through the web app, or direct posting into WeChat Official Account backend.
-- Prefer `scripts/cdp_export.ts` for end-to-end verification because it exercises the real web app behavior.
-
-## Non-negotiables
+## Standard CDP workflow
 
 - Use Chrome CDP for browser automation; do not use `agent-browser` for this skill.
-- Default to the "复制富文本" button path; only use selection copy when explicitly requested or the button fails.
-- When `--wechat` is enabled, treat "fill metadata + paste body + save draft" as the default workflow.
-
-## Prereqs
-
-- Node.js 24+ available (`node`); `scripts/cdp_export.ts` relies on native TypeScript execution.
-- Default web app: `https://wechat.reshub.vip`.
-- Do not start a local web server unless the user explicitly asks for local development or debugging.
-- Chrome/Edge with remote debugging enabled for `--cdp`, or allow `--launch-local` to start a local Chrome.
-- Logged-in WeChat Official Account session if using `--wechat`.
-
-## Workflow
-
-1. Determine whether the user wants HTML export only, rich-text copy, or full WeChat draft automation.
-2. Run `scripts/cdp_export.ts` with the minimal flags required.
-3. If the user mentions themes, pass `?theme=<name>` through `--app` or `--theme`.
-4. If the user mentions WeChat posting, add `--wechat` and pass metadata overrides when available.
-5. After execution, report what was actually completed: HTML generated, rich text copied, WeChat draft filled, cover uploaded, original marked, draft saved.
-
-## Quick start
-
-HTML export through the web app:
-
-```bash
-node {baseDir}/scripts/cdp_export.ts \
-  --markdown-file "article.md" \
-  --app "https://wechat.reshub.vip/?theme=minimal" \
-  --cdp "http://127.0.0.1:9222" \
-  --action export-html
-```
-
-CDP copy only:
-
-```bash
-node {baseDir}/scripts/cdp_export.ts \
-  --markdown-file "article.md" \
-  --app "https://wechat.reshub.vip" \
-  --cdp "http://127.0.0.1:9222" \
-  --action copy-rich
-```
-
-CDP + WeChat backend:
-
-```bash
-node {baseDir}/scripts/cdp_export.ts \
-  --markdown-file "article.md" \
-  --app "https://wechat.reshub.vip" \
-  --cdp "http://127.0.0.1:9222" \
-  --action copy-rich \
-  --wechat
-```
-
-Theme preselection:
-
-```bash
-node {baseDir}/scripts/cdp_export.ts \
-  --markdown-file "article.md" \
-  --app "https://wechat.reshub.vip/?theme=minimal" \
-  --cdp "http://127.0.0.1:9222" \
-  --action copy-rich
-```
-
-Full draft example:
+- Default app: `https://wechat.reshub.vip`. Do not start a local server unless the user asks for local development or debugging.
+- Default to the website's “复制富文本” button. Use selection copy only when explicitly requested or the button fails.
+- With `--wechat`, fill available metadata and save the draft by default.
+- Original declaration is enabled by default; use `--no-original` only when the user requests a non-original UI draft.
 
 ```bash
 node {baseDir}/scripts/cdp_export.ts \
@@ -98,71 +40,43 @@ node {baseDir}/scripts/cdp_export.ts \
   --cdp "http://127.0.0.1:9222" \
   --action copy-rich \
   --wechat \
-  --title "测试标题" \
-  --author "测试作者" \
-  --summary "这是一段测试摘要。" \
-  --cover "./cover.png"
+  --title "Article title" \
+  --author "Author" \
+  --summary "Summary" \
+  --cover "cover.png"
 ```
 
-## Inputs and metadata
+Relevant flags: `--theme`, `--app`, `--cdp`, `--launch-local`, `--wechat`, `--title`, `--author`, `--summary`, `--cover`, `--no-submit`, `--no-original`, `--delay-scale`, `--jitter-ms`, and `--copy-strategy selection`.
 
-- Accept Markdown via `--markdown-file`, stdin, or `--markdown` text.
-- Parse frontmatter: `title`, `author`, `summary`, `coverImage`, `featureImage`, `cover`, `image`.
-- Allow CLI overrides: `--title`, `--author`, `--summary`, `--cover`.
-- Default `--wechat` saves draft unless `--no-submit`.
-- Default to mark original unless `--no-original`.
-- If both frontmatter and CLI args exist, CLI args win.
+See `references/wechat-cdp.md`, `references/theme-lab.md`, and `references/troubleshooting.md`.
 
-## Defaults that matter
+## Non-original API draft workflow
 
-- Default app URL: `https://wechat.reshub.vip`
-- Default CDP URL: `http://127.0.0.1:9222`
-- Default action: `copy-rich`
-- Default copy strategy: click the "复制富文本" button
-- Default WeChat behavior: save draft
-- Default original behavior: enabled
-- Default slow-down: `--delay-scale 3`
-- Default jitter: `--jitter-ms 800`
+Use only after the user has asked to save a draft and the article does not require an original declaration.
 
-## Theme selection
+```bash
+node {baseDir}/scripts/publish_draft.mjs \
+  --html "article-fragment.html" \
+  --title "Article title" \
+  --author "Author" \
+  --summary "Summary" \
+  --cover "cover.png" \
+  --dry-run
+```
 
-- Add `?theme=<name>` to the app URL to preselect a theme.
-- Support built-in themes plus locally saved theme drafts.
-- See `references/theme-lab.md` for import/export format and naming rules.
+- `--html` is mandatory.
+- Remove `--dry-run` only when a real draft should be created.
+- Credentials resolve from the process environment first, then `{baseDir}/.baoyu-skills/.env`.
+- This script may create a draft. It must never preview, declare originality, or mass-send.
+- See `references/api-draft-publish.md` for options and credential setup.
 
-## Common flags
+## Prerequisites
 
-- `--markdown-file <path>`: read Markdown from file.
-- `--markdown "<text>"`: pass Markdown directly.
-- `--theme <name>`: select theme when supported by the script.
-- `--app <url>`: override web app URL.
-- `--cdp <url>`: connect to an existing Chrome CDP endpoint.
-- `--launch-local`: launch a local Chrome if none is already running.
-- `--wechat`: open WeChat Official Account backend and paste content.
-- `--title`, `--author`, `--summary`, `--cover`: override parsed metadata.
-- `--no-submit`: do everything except save draft.
-- `--no-original`: skip original declaration flow.
-- `--copy-strategy selection`: fallback copy mode.
+- Node.js 24+ for `scripts/cdp_export.ts` and `scripts/publish_draft.mjs`.
+- Chrome or Edge remote debugging and a logged-in WeChat Official Account session for CDP publishing.
+- WeChat API credentials and an allowed source IP for API drafts.
+- The API adapter invokes `npx -y bun` without a shell and uses the vendored runtime under `scripts/vendor/`.
 
-## Timing and stability
+## Report the result
 
-- Use `--delay-scale` and `--jitter-ms` to slow down UI steps and add random jitter.
-- Keep waits generous on WeChat backend UI transitions.
-
-## Vendoring external deps
-
-- If a script needs third-party packages, vendor them under `{baseDir}/scripts/vendor/` and reference via `file:` in `{baseDir}/scripts/package.json`.
-- Keep vendor dependencies pinned and minimal.
-
-## References
-
-- `references/wechat-cdp.md`: CDP flow, selectors, and original declaration steps.
-- `references/theme-lab.md`: theme draft import/export and URL selection rules.
-- `references/troubleshooting.md`: common failure modes and fixes.
-
-## Report back to the user
-
-- State which script was used.
-- State whether the result was HTML only, copied rich text, or pasted into WeChat backend.
-- If `--wechat` was used, state whether title, author, summary, cover, original declaration, and draft save each succeeded.
-- If something failed, mention the exact step and whether the content itself was still produced.
+State the route and script used. Report only outcomes actually completed: generated HTML, copied rich text, metadata filled, cover uploaded, original declaration completed, or draft saved. For failures, name the exact failed step and whether the content artifact remains usable.

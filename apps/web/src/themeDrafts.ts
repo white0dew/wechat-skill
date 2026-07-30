@@ -89,7 +89,7 @@ export function createEmptyDraft(): ThemeDraft {
     id: "custom-sandbox",
     label: "Custom Sandbox",
     summary: "本地实验主题，用来验证新配色和标题风格。",
-    baseThemeName: "default",
+    baseThemeName: "moyu-green",
     fontFamily: "Source Han Serif SC, Noto Serif SC, Georgia, serif",
     bodyColor: "#1f2937",
     headingColor: "#111827",

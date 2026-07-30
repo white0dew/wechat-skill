@@ -144,5 +144,5 @@ export const customSandboxTheme: Theme = {
     "margin": "28px 0"
   }
 },
-  overrides: themes["default"].overrides
+  overrides: themes["moyu-green"].overrides
 };

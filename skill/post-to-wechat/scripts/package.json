@@ -1,0 +1,8 @@
+{
+  "name": "post-to-wechat-skill-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "publish:draft": "node publish_draft.mjs"
+  }
+}

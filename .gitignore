@@ -11,6 +11,12 @@ coverage
 output
 task.md
 .env
+.baoyu-skills/.env
+skill/post-to-wechat/.baoyu-skills/.env
+skill/post-to-wechat/scripts/vendor/**/node_modules/
+skill/post-to-wechat/scripts/vendor/**/.git/
+skill/post-to-wechat/scripts/vendor/**/runtime/
+skill/post-to-wechat/scripts/vendor/**/tmp/
 .skills-lock.json
 test.md
 tmp
