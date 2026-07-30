@@ -150,7 +150,13 @@ async function main() {
   }
 
   const inputPath = path.resolve(options.html);
+  if (path.extname(inputPath).toLowerCase() !== ".html") {
+    throw new Error("--html must point to an .html file containing already formatted HTML");
+  }
   const fragment = await fs.readFile(inputPath, "utf8");
+  if (!fragment.trim()) {
+    throw new Error("--html file is empty");
+  }
   const title = options.title ? `<title>${escapeTitle(options.title)}</title>` : "";
   const document = `<!doctype html>\n<html><head><meta charset="utf-8">${title}</head><body>${fragment}</body></html>\n`;
   const tempPath = path.join(

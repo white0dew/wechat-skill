@@ -470,47 +470,21 @@ Usage:
   npx -y bun wechat-api.ts <file> [options]
 
 Arguments:
-  file                Markdown (.md) or HTML (.html) file
+  file                Already formatted HTML (.html) file; Markdown is not accepted
 
 Options:
   --type <type>       Article type: news (文章, default) or newspic (图文)
   --title <title>     Override title
   --author <name>     Author name (max 16 chars)
   --summary <text>    Article summary/digest (max 128 chars)
-  --theme <name>      Theme name for markdown (default, grace, simple, modern). Default: default
-  --color <name|hex>  Primary color (blue, green, vermilion, etc. or hex)
   --cover <path>      Cover image path (local or URL)
   --account <alias>   Select account by alias (for multi-account setups)
-  --no-cite           Disable bottom citations for ordinary external links in markdown mode
-  --dry-run           Parse and render only, don't publish
-  --help              Show this help
+  --dry-run           Validate HTML input and payload only; don't publish
+  --need-open-comment <0|1>           Comment switch
+  --only-fans-can-comment <0|1>       Restrict comments to followers
 
-Frontmatter Fields (markdown):
-  title               Article title
-  author              Author name
-  digest/summary      Article summary
-  coverImage/featureImage/cover/image   Cover image path
-
-Comments:
-  Comments are enabled by default, open to all users.
-
-Environment Variables:
-  WECHAT_APP_ID       WeChat App ID
-  WECHAT_APP_SECRET   WeChat App Secret
-
-Config File Locations (in priority order):
-  1. Environment variables
-  2. <cwd>/.baoyu-skills/.env
-  3. ~/.baoyu-skills/.env
-
-Example:
-  npx -y bun wechat-api.ts article.md
-  npx -y bun wechat-api.ts article.md --theme grace --cover cover.png
-  npx -y bun wechat-api.ts article.md --author "Author Name" --summary "Brief intro"
-  npx -y bun wechat-api.ts article.html --title "My Article"
-  npx -y bun wechat-api.ts images/ --type newspic --title "Photo Album"
-  npx -y bun wechat-api.ts article.md --dry-run
-  npx -y bun wechat-api.ts article.md --no-cite
+This adapter accepts already formatted HTML only. It does not render Markdown,
+select a theme, preview, mass-send, or declare originality.
 `);
   process.exit(0);
 }
@@ -589,6 +563,10 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   args.isHtml = args.filePath.toLowerCase().endsWith(".html");
+  if (!args.isHtml) {
+    console.error("Error: This adapter accepts already formatted .html files only.");
+    process.exit(1);
+  }
 
   return args;
 }
