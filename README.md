@@ -31,6 +31,8 @@ skill/gzh-design
 
 可将它们链接到 Agent 的 skill 目录。
 
+`gzh-design` 支持在**已安装的 Skill 副本**中，将 `skill/gzh-design/.author-profile.example.json` 复制为私有的 `.author-profile.json`，用作默认署名。真实作者信息不得提交到仓库，具体约定见 `skill/gzh-design/references/author-profile.md`。
+
 ## HTML 草稿投递
 
 普通非原创草稿使用：

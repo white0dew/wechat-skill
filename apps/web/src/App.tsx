@@ -617,7 +617,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [copiedTs, setCopiedTs] = useState(false);
   const [themeModalOpen, setThemeModalOpen] = useState(() => getThemeModalFromSearch());
-  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(true);
   const [imageUploadSettings, setImageUploadSettings] = useState<ImageUploadSettings>(() =>
     typeof window === "undefined"
       ? createDefaultImageUploadSettings()
